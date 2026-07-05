@@ -111,3 +111,63 @@ fn copy_no_match_errors_with_hint() {
         .failure()
         .stderr(predicates::str::contains("no card matches"));
 }
+
+#[test]
+fn new_creates_file_in_subdir_and_commits() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib)
+        .args(["new", "evals/Rubric Writer", "--tags", "evals,writing"])
+        .assert()
+        .success();
+    assert!(lib.join("evals/rubric-writer.md").is_file());
+    let log = std::process::Command::new("git")
+        .args(["log", "--oneline"])
+        .current_dir(&lib)
+        .output()
+        .unwrap();
+    assert!(String::from_utf8_lossy(&log.stdout).contains("pp: add evals/rubric-writer"));
+}
+
+#[test]
+fn new_collision_errors() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib).args(["new", "Retro"]).assert().success();
+    pp(&lib)
+        .args(["new", "Retro"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("already exists"));
+}
+
+#[test]
+fn sync_commits_external_edits_and_pushes_to_a_remote() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    let git = |dir: &std::path::Path, args: &[&str]| {
+        let out = std::process::Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .env("GIT_CONFIG_GLOBAL", "/dev/null")
+            .env("GIT_CONFIG_SYSTEM", "/dev/null")
+            .output()
+            .unwrap();
+        assert!(
+            out.status.success(),
+            "git {args:?}: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+        String::from_utf8_lossy(&out.stdout).to_string()
+    };
+    // wire the library to a local bare repo as `origin` with an upstream branch
+    let remote = tmp.path().join("remote.git");
+    git(tmp.path(), &["init", "--bare", remote.to_str().unwrap()]);
+    git(&lib, &["remote", "add", "origin", remote.to_str().unwrap()]);
+    git(&lib, &["push", "-u", "origin", "HEAD"]);
+    // an edit made outside pp, never committed through the app
+    std::fs::write(lib.join("external.md"), "---\ntitle: External\n---\nhi\n").unwrap();
+    pp(&lib).arg("sync").assert().success();
+    let log = git(&remote, &["log", "--oneline", "--all"]);
+    assert!(log.contains("pp: sync external edits"));
+}
