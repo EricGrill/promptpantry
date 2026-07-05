@@ -42,3 +42,22 @@ fn init_creates_repo_readme_and_example_card() {
         "customized"
     );
 }
+
+#[test]
+fn list_outputs_tab_separated_and_filters() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = tmp.path().join("pantry");
+    pp(&lib).arg("init").assert().success();
+    pp(&lib)
+        .arg("list")
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            "bug-report-template\tBug Report Template\tbugs,templates",
+        ));
+    pp(&lib)
+        .args(["list", "#nosuchtag"])
+        .assert()
+        .success()
+        .stdout(predicates::str::is_empty());
+}
