@@ -1,4 +1,5 @@
 pub mod card;
+pub mod catalog;
 pub mod config;
 pub mod context;
 pub mod editor;

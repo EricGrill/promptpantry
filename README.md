@@ -1,61 +1,189 @@
 # Prompt Pantry (`pp`)
 
-A local, git-backed TUI for storing and reusing AI prompts — agent prompts,
-system prompts, eval prompts, bug templates. Cards are plain markdown files
-with YAML frontmatter in `~/prompts` (a git repo). Fuzzy-search them, preview,
-fill `{{variables}}`, and copy to the clipboard.
+Prompt Pantry is a local, git-backed prompt library with a fast terminal UI and
+scriptable CLI. It stores reusable prompts as plain markdown cards, fills
+`{{variables}}`, previews or copies rendered prompts, and auto-commits library
+changes so the prompt collection can be synced like any other git repo.
+
+It also manages a `library.yaml` capability catalog for reusable prompts,
+skills, and agents. Catalog entries can point at local files or GitHub file
+URLs, then install into project-local or global `.claude/*` directories on
+demand.
 
 ## Install
 
-    cargo install --path .
+```sh
+cargo install --path .
+```
+
+Requirements:
+
+- Rust toolchain
+- `git` for library initialization, auto-commits, sync, and catalog GitHub
+  sources
+- Clipboard support for `pp copy` outside `--stdout`
 
 Linux note: on X11/Wayland without a clipboard manager, copied text may not
-survive after `pp` exits (macOS/Windows unaffected).
+survive after `pp` exits. macOS and Windows are unaffected.
 
-## Quick start
+## Quick Start
 
-    pp init          # create ~/prompts, git init, seed an example card
-    pp               # open the TUI: type to search, ↵ to copy
-    pp list          # id<TAB>title<TAB>tags — pipe it anywhere
-    pp show bug report --var ticket=ABC-123
-    pp copy bug report --var ticket=ABC-123 --stdout
-    pp new "evals/Rubric Writer" --tags evals
-    pp sync          # commit externals, pull --rebase, push
+```sh
+pp init
+pp
+pp list
+pp show bug report --var ticket=ABC-123
+pp copy bug report --var ticket=ABC-123 --stdout
+pp new "evals/Rubric Writer" --tags evals,writing
+pp sync
+```
 
-Use `pp show` (or `pp view`) to print a card without touching the clipboard.
-Multi-word search queries can be written as separate words, so shell quotes are
-optional.
+`pp` with no subcommand opens the TUI. Use `pp show` (or `pp view`) to print a
+prompt without touching the clipboard. Multi-word search queries can be passed
+as separate words, so shell quotes are optional.
 
-## TUI keys
+## Prompt Cards
+
+Cards are markdown files with optional YAML frontmatter:
+
+```markdown
+---
+title: Bug Report Template
+tags: [bugs, templates]
+description: Structured repro report
+---
+Repo: {{repo}}
+Ticket: {{ticket}}
+
+## Steps to reproduce
+1.
+```
+
+The rendered body is everything after the frontmatter. Missing frontmatter is
+allowed; the card title falls back to the filename. Malformed frontmatter keeps
+the card loadable and surfaces the parse error in the preview.
+
+Built-in variables are pre-filled from the directory where you run `pp`:
+
+| Variable | Value |
+|---|---|
+| `{{repo}}` | current git repository directory name |
+| `{{branch}}` | current git branch |
+| `{{cwd}}` | current working directory |
+| `{{date}}` | current date as `YYYY-MM-DD` |
+
+Any other variable is requested in the TUI form or supplied with repeatable
+`--var key=value` flags in the CLI.
+
+## CLI
+
+```sh
+pp init
+pp list [query...]
+pp show [query...] [--id id] [--raw] [--var key=value]
+pp view [query...] [--id id] [--raw] [--var key=value]
+pp copy [query...] [--id id] [--raw] [--stdout] [--var key=value]
+pp new <title> [--tags tag,tag]
+pp sync
+```
+
+Notes:
+
+- `pp list` prints `id<TAB>title<TAB>tag,tag`.
+- `#tag` query tokens filter by tag prefix, e.g. `pp list '#bugs'`.
+- `pp show` prints to stdout and leaves placeholders intact unless `--var` is
+  supplied.
+- `pp copy` copies to the clipboard by default; `--stdout` prints instead.
+- `pp new` opens `$EDITOR`, then `$VISUAL`, then `vi`.
+- `pp sync` commits external prompt-library edits, runs `git pull --rebase`,
+  then pushes.
+
+## TUI Keys
 
 | Key | Action |
 |---|---|
-| type | fuzzy-search titles, tags, paths (`#tag` filters by tag) |
-| ↑/↓ or ^k/^j | move selection |
-| ↵ | copy card (opens variable form if it has `{{vars}}`) |
-| ^n | new card (opens $EDITOR) |
-| ^e | edit selected card |
-| ^d | delete selected card (confirm) |
+| type | fuzzy-search titles, tags, and paths |
+| Up/Down or `^k`/`^j` | move selection |
+| Enter | copy selected card, opening the variable form when needed |
+| `^n` | create a new card in `$EDITOR` |
+| `^e` | edit selected card in `$EDITOR` |
+| `^d` | delete selected card after confirmation |
 | PgUp/PgDn | scroll preview |
-| esc | clear query, then quit; ^c always quits |
+| Esc | clear query, then quit |
+| `^c` | quit |
 
-## Card format
+## Library Location
 
-    ---
-    title: Bug Report Template
-    tags: [bugs, templates]
-    description: optional one-liner
-    ---
-    Repo: {{repo}}
-    Ticket: {{ticket}}
+Prompt Pantry resolves the library directory in this order:
 
-Builtins pre-filled from where you run `pp`: `{{repo}}`, `{{branch}}`,
-`{{cwd}}`, `{{date}}`. Everything else is asked for in the form.
+1. `--dir <path>`
+2. `PROMPT_PANTRY_DIR`
+3. `dir` in `~/.config/prompt-pantry/config.toml`
+4. `~/prompts`
 
-## Library location
+`pp init` creates the directory, initializes git, writes a README, and seeds an
+example card. Every create, edit, delete, and catalog update writes files first
+and then attempts a focused git commit. Git failures are reported as warnings
+when the content operation itself succeeded.
 
-`--dir` flag > `PROMPT_PANTRY_DIR` env > `dir` in
-`~/.config/prompt-pantry/config.toml` > `~/prompts` (default).
+## Capability Catalog
 
-Every create/edit/delete through `pp` is auto-committed. Push/pull with
-`pp sync` or plain git — it's your repo.
+The capability catalog lives at `<prompt-library>/library.yaml`. It records
+available prompts, skills, and agents; nothing is installed until you use an
+entry.
+
+```sh
+pp library import /path/to/library.yaml
+pp library add prompt bug --description "Bug command" --source /path/to/bug.md
+pp library add skill reviewer \
+  --description "Review code" \
+  --source /path/to/reviewer/SKILL.md \
+  --requires prompt:bug
+pp library list
+pp library search review
+pp library use reviewer
+pp library use reviewer --global
+pp library use reviewer --target /tmp/capabilities
+pp library sync
+pp library push reviewer
+pp library remove reviewer --delete-local
+```
+
+Default install targets:
+
+| Kind | Project-local target | Global target |
+|---|---|---|
+| prompt | `.claude/commands/<name>.md` | `~/.claude/commands/<name>.md` |
+| skill | `.claude/skills/<name>/` | `~/.claude/skills/<name>/` |
+| agent | `.claude/agents/<name>.md` | `~/.claude/agents/<name>.md` |
+
+Supported source formats:
+
+- absolute local paths
+- `~/...` local paths
+- GitHub browser file URLs such as
+  `https://github.com/org/repo/blob/main/path/to/SKILL.md`
+- raw GitHub URLs such as
+  `https://raw.githubusercontent.com/org/repo/main/path/to/SKILL.md`
+
+Skills install by copying the directory containing `SKILL.md`. Prompts and
+agents install as single markdown files. `pp library sync` refreshes installed
+entries from their sources. `pp library push` copies local edits back to a local
+source, or commits and pushes back to a GitHub source when the source URL points
+at GitHub.
+
+Dependencies are typed as `kind:name`, for example `prompt:bug` or
+`skill:reviewer`, and are installed before the requested entry.
+
+## Development
+
+```sh
+cargo fmt --check
+cargo test
+cargo clippy --all-targets -- -D warnings
+cargo build --release
+```
+
+The test suite covers core parsing/search/template behavior, git-backed library
+operations, CLI flows, catalog install/sync/push/remove/import behavior, and TUI
+rendering/state-machine smoke tests.

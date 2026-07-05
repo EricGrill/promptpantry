@@ -325,3 +325,245 @@ fn copy_stdout_renders_builtins() {
         .success()
         .stdout(predicates::str::contains(format!("D: {expected}")));
 }
+
+#[test]
+fn library_add_list_and_search_manage_catalog_entries() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    let source_dir = tmp.path().join("sources/writer");
+    std::fs::create_dir_all(&source_dir).unwrap();
+    let source = source_dir.join("SKILL.md");
+    std::fs::write(&source, "---\nname: writer\n---\nWrite prompts\n").unwrap();
+
+    pp(&lib)
+        .args([
+            "library",
+            "add",
+            "skill",
+            "writer",
+            "--description",
+            "Writes reusable prompts",
+            "--source",
+            source.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+
+    let catalog = std::fs::read_to_string(lib.join("library.yaml")).unwrap();
+    assert!(catalog.contains("name: writer"));
+    pp(&lib)
+        .args(["library", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(
+            "skill\twriter\tWrites reusable prompts",
+        ));
+    pp(&lib)
+        .args(["library", "search", "reusable"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("skill\twriter"));
+}
+
+#[test]
+fn library_use_installs_dependencies_before_requested_item() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    let work = tmp.path().join("work");
+    std::fs::create_dir(&work).unwrap();
+    let skill_dir = tmp.path().join("sources/writer");
+    std::fs::create_dir_all(&skill_dir).unwrap();
+    let skill_source = skill_dir.join("SKILL.md");
+    std::fs::write(&skill_source, "skill body\n").unwrap();
+    let prompt_source = tmp.path().join("sources/base-prompt.md");
+    std::fs::write(&prompt_source, "prompt body\n").unwrap();
+
+    pp(&lib)
+        .args([
+            "library",
+            "add",
+            "prompt",
+            "base-prompt",
+            "--description",
+            "Base command",
+            "--source",
+            prompt_source.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    pp(&lib)
+        .args([
+            "library",
+            "add",
+            "skill",
+            "writer",
+            "--description",
+            "Writer skill",
+            "--source",
+            skill_source.to_str().unwrap(),
+            "--requires",
+            "prompt:base-prompt",
+        ])
+        .assert()
+        .success();
+
+    let mut cmd = pp(&lib);
+    cmd.current_dir(&work);
+    cmd.args(["library", "use", "writer"]).assert().success();
+
+    assert!(work.join(".claude/commands/base-prompt.md").is_file());
+    assert!(work.join(".claude/skills/writer/SKILL.md").is_file());
+}
+
+#[test]
+fn library_sync_refreshes_installed_items_from_sources() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    let work = tmp.path().join("work");
+    std::fs::create_dir(&work).unwrap();
+    let source_dir = tmp.path().join("sources/writer");
+    std::fs::create_dir_all(&source_dir).unwrap();
+    let source = source_dir.join("SKILL.md");
+    std::fs::write(&source, "v1\n").unwrap();
+    pp(&lib)
+        .args([
+            "library",
+            "add",
+            "skill",
+            "writer",
+            "--description",
+            "Writer skill",
+            "--source",
+            source.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let mut use_cmd = pp(&lib);
+    use_cmd.current_dir(&work);
+    use_cmd
+        .args(["library", "use", "writer"])
+        .assert()
+        .success();
+
+    std::fs::write(&source, "v2\n").unwrap();
+    let mut sync_cmd = pp(&lib);
+    sync_cmd.current_dir(&work);
+    sync_cmd.args(["library", "sync"]).assert().success();
+
+    assert_eq!(
+        std::fs::read_to_string(work.join(".claude/skills/writer/SKILL.md")).unwrap(),
+        "v2\n"
+    );
+}
+
+#[test]
+fn library_push_copies_local_install_back_to_local_source() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    let work = tmp.path().join("work");
+    std::fs::create_dir(&work).unwrap();
+    let source_dir = tmp.path().join("sources/writer");
+    std::fs::create_dir_all(&source_dir).unwrap();
+    let source = source_dir.join("SKILL.md");
+    std::fs::write(&source, "source\n").unwrap();
+    pp(&lib)
+        .args([
+            "library",
+            "add",
+            "skill",
+            "writer",
+            "--description",
+            "Writer skill",
+            "--source",
+            source.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let mut use_cmd = pp(&lib);
+    use_cmd.current_dir(&work);
+    use_cmd
+        .args(["library", "use", "writer"])
+        .assert()
+        .success();
+    std::fs::write(work.join(".claude/skills/writer/SKILL.md"), "local edit\n").unwrap();
+
+    let mut push_cmd = pp(&lib);
+    push_cmd.current_dir(&work);
+    push_cmd
+        .args(["library", "push", "writer"])
+        .assert()
+        .success();
+
+    assert_eq!(std::fs::read_to_string(source).unwrap(), "local edit\n");
+}
+
+#[test]
+fn library_remove_can_delete_catalog_entry_and_local_install() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    let work = tmp.path().join("work");
+    std::fs::create_dir(&work).unwrap();
+    let source_dir = tmp.path().join("sources/writer");
+    std::fs::create_dir_all(&source_dir).unwrap();
+    let source = source_dir.join("SKILL.md");
+    std::fs::write(&source, "source\n").unwrap();
+    pp(&lib)
+        .args([
+            "library",
+            "add",
+            "skill",
+            "writer",
+            "--description",
+            "Writer skill",
+            "--source",
+            source.to_str().unwrap(),
+        ])
+        .assert()
+        .success();
+    let mut use_cmd = pp(&lib);
+    use_cmd.current_dir(&work);
+    use_cmd
+        .args(["library", "use", "writer"])
+        .assert()
+        .success();
+
+    let mut remove_cmd = pp(&lib);
+    remove_cmd.current_dir(&work);
+    remove_cmd
+        .args(["library", "remove", "writer", "--delete-local"])
+        .assert()
+        .success();
+
+    assert!(!std::fs::read_to_string(lib.join("library.yaml"))
+        .unwrap()
+        .contains("writer"));
+    assert!(!work.join(".claude/skills/writer").exists());
+}
+
+#[test]
+fn library_import_merges_existing_library_yaml() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    let source = tmp.path().join("agent.md");
+    std::fs::write(&source, "agent prompt\n").unwrap();
+    let external = tmp.path().join("external-library.yaml");
+    std::fs::write(
+        &external,
+        format!(
+            "default_dirs:\n  skills:\n    - default: .claude/skills/\n    - global: ~/.claude/skills/\n  agents:\n    - default: .claude/agents/\n    - global: ~/.claude/agents/\n  prompts:\n    - default: .claude/commands/\n    - global: ~/.claude/commands/\nlibrary:\n  skills: []\n  agents:\n    - name: reviewer\n      description: Review code\n      source: {}\n  prompts: []\n",
+            source.display()
+        ),
+    )
+    .unwrap();
+
+    pp(&lib)
+        .args(["library", "import", external.to_str().unwrap()])
+        .assert()
+        .success();
+
+    pp(&lib)
+        .args(["library", "list"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("agent\treviewer\tReview code"));
+}

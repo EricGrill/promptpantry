@@ -1,5 +1,9 @@
-use clap::{Parser, Subcommand};
-use prompt_pantry::{cli, core::config, tui};
+use clap::{Parser, Subcommand, ValueEnum};
+use prompt_pantry::{
+    cli,
+    core::{catalog::EntryKind, config},
+    tui,
+};
 use std::path::PathBuf;
 
 const HELP_EXAMPLES: &str = "\
@@ -12,6 +16,9 @@ Examples:
   pp show --id bug-report-template --var ticket=ABC-123
   pp copy bug report --var ticket=ABC-123
   pp new \"evals/Rubric Writer\" --tags evals,writing
+  pp library add skill reviewer --description \"Code reviewer\" --source /path/to/reviewer/SKILL.md
+  pp library use reviewer
+  pp library sync
   pp sync";
 
 #[derive(Parser)]
@@ -81,6 +88,77 @@ enum Cmd {
     },
     /// Commit pending changes, then git pull --rebase && git push
     Sync,
+    /// Manage reusable prompts, skills, and agents from a library.yaml catalog
+    Library {
+        #[command(subcommand)]
+        cmd: LibraryCmd,
+    },
+}
+
+#[derive(Subcommand)]
+enum LibraryCmd {
+    /// Register a prompt, skill, or agent source in library.yaml
+    Add {
+        kind: LibraryKind,
+        name: String,
+        #[arg(long)]
+        description: String,
+        #[arg(long)]
+        source: String,
+        /// Typed dependency, repeatable or comma-separated: skill:name,agent:name,prompt:name
+        #[arg(long = "requires", value_delimiter = ',')]
+        requires: Vec<String>,
+    },
+    /// Merge an existing The Library-style library.yaml file into this pantry
+    Import {
+        /// Path to library.yaml or a directory containing it
+        source: PathBuf,
+    },
+    /// List every catalog entry with install status
+    List,
+    /// Search catalog entries by name or description
+    Search {
+        #[arg(value_name = "QUERY")]
+        query: Vec<String>,
+    },
+    /// Install or refresh an entry and its typed dependencies
+    Use {
+        query: String,
+        /// Install to the configured global target directory
+        #[arg(long)]
+        global: bool,
+        /// Install into a custom base directory instead of default/global
+        #[arg(long)]
+        target: Option<PathBuf>,
+    },
+    /// Re-pull every entry currently installed in default/global target dirs
+    Sync,
+    /// Push an installed local copy back to its source
+    Push { query: String },
+    /// Remove an entry from the catalog
+    Remove {
+        query: String,
+        /// Also delete installed default/global copies
+        #[arg(long)]
+        delete_local: bool,
+    },
+}
+
+#[derive(Clone, ValueEnum)]
+enum LibraryKind {
+    Skill,
+    Agent,
+    Prompt,
+}
+
+impl From<LibraryKind> for EntryKind {
+    fn from(value: LibraryKind) -> Self {
+        match value {
+            LibraryKind::Skill => EntryKind::Skill,
+            LibraryKind::Agent => EntryKind::Agent,
+            LibraryKind::Prompt => EntryKind::Prompt,
+        }
+    }
 }
 
 fn query_text(parts: Vec<String>) -> Option<String> {
@@ -116,5 +194,28 @@ fn main() -> anyhow::Result<()> {
         }
         Some(Cmd::New { title, tags }) => cli::new::run(&dir, &title, &tags),
         Some(Cmd::Sync) => cli::sync::run(&dir),
+        Some(Cmd::Library { cmd }) => match cmd {
+            LibraryCmd::Add {
+                kind,
+                name,
+                description,
+                source,
+                requires,
+            } => cli::library::add(&dir, kind.into(), name, description, source, requires),
+            LibraryCmd::Import { source } => cli::library::import(&dir, &source),
+            LibraryCmd::List => cli::library::list(&dir),
+            LibraryCmd::Search { query } => cli::library::search(&dir, &query.join(" ")),
+            LibraryCmd::Use {
+                query,
+                global,
+                target,
+            } => cli::library::use_entry(&dir, &query, global, target),
+            LibraryCmd::Sync => cli::library::sync(&dir),
+            LibraryCmd::Push { query } => cli::library::push(&dir, &query),
+            LibraryCmd::Remove {
+                query,
+                delete_local,
+            } => cli::library::remove(&dir, &query, delete_local),
+        },
     }
 }
