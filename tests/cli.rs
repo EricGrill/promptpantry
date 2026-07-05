@@ -61,3 +61,53 @@ fn list_outputs_tab_separated_and_filters() {
         .success()
         .stdout(predicates::str::is_empty());
 }
+
+fn seeded_lib(tmp: &tempfile::TempDir) -> std::path::PathBuf {
+    let lib = tmp.path().join("pantry");
+    pp(&lib).arg("init").assert().success();
+    lib
+}
+
+#[test]
+fn copy_stdout_renders_variables() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib)
+        .args(["copy", "bug report", "--stdout", "--var", "ticket=ABC-123"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("Ticket: ABC-123"));
+}
+
+#[test]
+fn copy_missing_variable_errors_with_names() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib)
+        .args(["copy", "--id", "bug-report-template", "--stdout"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("missing variables: ticket"));
+}
+
+#[test]
+fn copy_raw_keeps_placeholders() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib)
+        .args(["copy", "--id", "bug-report-template", "--raw", "--stdout"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains("{{ticket}}"));
+}
+
+#[test]
+fn copy_no_match_errors_with_hint() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib)
+        .args(["copy", "zzzzqq", "--stdout"])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("no card matches"));
+}
