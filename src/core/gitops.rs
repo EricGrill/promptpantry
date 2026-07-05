@@ -41,8 +41,10 @@ pub fn has_changes(dir: &Path, rel: &str) -> Result<bool> {
 
 /// Commit pending external edits, then pull --rebase and push.
 pub fn sync(dir: &Path) -> Result<String> {
-    git(dir, &["add", "-A"])?;
-    let _ = git(dir, &["commit", "-m", "pp: sync external edits"]); // fails when clean — fine
+    if has_changes(dir, ".")? {
+        git(dir, &["add", "-A"])?;
+        git(dir, &["commit", "-m", "pp: sync external edits"])?;
+    }
     let pull = git(dir, &["pull", "--rebase"])?;
     let push = git(dir, &["push"])?;
     Ok(format!("{}\n{}", pull.trim(), push.trim()))

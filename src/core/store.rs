@@ -54,7 +54,13 @@ impl Store {
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent)?;
         }
-        let display_title = title.rsplit('/').next().unwrap_or(title).trim().replace('"', "\\\"");
+        let display_title = title
+            .rsplit('/')
+            .next()
+            .unwrap_or(title)
+            .trim()
+            .replace('\\', "\\\\")
+            .replace('"', "\\\"");
         let tags_line = if tags.is_empty() {
             String::new()
         } else {
@@ -144,5 +150,22 @@ mod tests {
     fn kebab_cases() {
         assert_eq!(kebab("Hello,  World!"), "hello-world");
         assert_eq!(kebab("evals/Rubric Writer"), "evals/rubric-writer");
+    }
+
+    #[test]
+    fn create_card_title_with_backslash_and_quote_round_trips() {
+        let (store, _tmp) = lib_with(&[]);
+        let title = "Fix C:\\Temp \"paths\"";
+        store.create_card(title, &[]).unwrap();
+        let cards = store.load_cards();
+        assert_eq!(cards.len(), 1);
+        assert!(cards[0].parse_error.is_none(), "parse_error: {:?}", cards[0].parse_error);
+        assert_eq!(cards[0].title, title);
+    }
+
+    #[test]
+    fn create_card_rejects_path_traversal_titles() {
+        let (store, _tmp) = lib_with(&[]);
+        assert!(store.create_card("../escape", &[]).is_err());
     }
 }
