@@ -38,9 +38,10 @@ pp new "evals/Rubric Writer" --tags evals,writing
 pp sync
 ```
 
-`pp` with no subcommand opens the TUI. Use `pp show` (or `pp view`) to print a
-prompt without touching the clipboard. Multi-word search queries can be passed
-as separate words, so shell quotes are optional.
+`pp` with no subcommand opens the TUI. Press Tab to switch between prompt cards
+and the capability catalog. Use `pp show` (or `pp view`) to print a prompt
+without touching the clipboard. Multi-word search queries can be passed as
+separate words, so shell quotes are optional.
 
 ## Prompt Cards
 
@@ -100,14 +101,35 @@ Notes:
 
 ## TUI Keys
 
+Prompt-card view:
+
 | Key | Action |
 |---|---|
 | type | fuzzy-search titles, tags, and paths |
+| Tab | switch to the capability catalog |
 | Up/Down or `^k`/`^j` | move selection |
 | Enter | copy selected card, opening the variable form when needed |
 | `^n` | create a new card in `$EDITOR` |
 | `^e` | edit selected card in `$EDITOR` |
 | `^d` | delete selected card after confirmation |
+| `^s` | run `pp sync` for the prompt library |
+| PgUp/PgDn | scroll preview |
+| Esc | clear query, then quit |
+| `^c` | quit |
+
+Capability-catalog view:
+
+| Key | Action |
+|---|---|
+| type | search catalog entries by name or description |
+| Tab | switch back to prompt cards |
+| Up/Down or `^k`/`^j` | move selection |
+| Enter | install selected entry and its dependencies |
+| `a` | add a catalog entry |
+| `i` | import a `library.yaml` catalog |
+| `^s` | refresh installed catalog entries from their sources |
+| `^p` | push local edits back to the selected entry's source |
+| `^d` | remove selected catalog entry and local installs after confirmation |
 | PgUp/PgDn | scroll preview |
 | Esc | clear query, then quit |
 | `^c` | quit |
@@ -130,7 +152,8 @@ when the content operation itself succeeded.
 
 The capability catalog lives at `<prompt-library>/library.yaml`. It records
 available prompts, skills, and agents; nothing is installed until you use an
-entry.
+entry. The same catalog can be managed from the CLI or from the TUI's catalog
+view.
 
 ```sh
 pp library import /path/to/library.yaml
