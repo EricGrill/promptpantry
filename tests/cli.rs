@@ -1,0 +1,27 @@
+use assert_cmd::Command;
+use std::path::Path;
+
+/// `pp` pointed at a library dir, isolated from this machine's git config,
+/// with a no-op editor and deterministic commit identity.
+pub fn pp(dir: &Path) -> Command {
+    let mut cmd = Command::cargo_bin("pp").unwrap();
+    cmd.arg("--dir")
+        .arg(dir)
+        .env("EDITOR", "true")
+        .env("GIT_CONFIG_GLOBAL", "/dev/null")
+        .env("GIT_CONFIG_SYSTEM", "/dev/null")
+        .env("GIT_AUTHOR_NAME", "pp-test")
+        .env("GIT_AUTHOR_EMAIL", "pp@test")
+        .env("GIT_COMMITTER_NAME", "pp-test")
+        .env("GIT_COMMITTER_EMAIL", "pp@test");
+    cmd
+}
+
+#[test]
+fn help_lists_all_subcommands() {
+    let assert = pp(Path::new(".")).arg("--help").assert().success();
+    let output = String::from_utf8_lossy(&assert.get_output().stdout).to_string();
+    for sub in ["init", "list", "copy", "new", "sync"] {
+        assert!(output.contains(sub), "missing subcommand {sub} in --help");
+    }
+}
