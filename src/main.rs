@@ -25,12 +25,13 @@ enum Cmd {
     /// Render a card and copy it to the clipboard
     Copy {
         /// Fuzzy query; best match wins
+        #[arg(conflicts_with = "id")]
         query: Option<String>,
         /// Exact card id (e.g. evals/rubric-writer)
         #[arg(long)]
         id: Option<String>,
         /// Variable value, repeatable: --var ticket=ABC-123
-        #[arg(long = "var", value_name = "KEY=VALUE")]
+        #[arg(long = "var", value_name = "KEY=VALUE", conflicts_with = "raw")]
         vars: Vec<String>,
         /// Copy with {{placeholders}} intact
         #[arg(long)]
@@ -51,7 +52,7 @@ enum Cmd {
 
 fn main() -> anyhow::Result<()> {
     let args = Cli::parse();
-    let dir = config::resolve_library_dir(args.dir.clone());
+    let dir = config::resolve_library_dir(args.dir);
     match args.cmd {
         None => tui::run(dir),
         Some(Cmd::Init) => cli::init::run(&dir),

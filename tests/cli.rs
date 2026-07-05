@@ -171,3 +171,51 @@ fn sync_commits_external_edits_and_pushes_to_a_remote() {
     let log = git(&remote, &["log", "--oneline", "--all"]);
     assert!(log.contains("pp: sync external edits"));
 }
+
+#[test]
+fn copy_var_without_equals_errors() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib)
+        .args([
+            "copy",
+            "--id",
+            "bug-report-template",
+            "--stdout",
+            "--var",
+            "novalue",
+        ])
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("--var must be KEY=VALUE"));
+}
+
+#[test]
+fn missing_library_suggests_init() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = tmp.path().join("does-not-exist");
+    pp(&lib)
+        .arg("list")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("pp init"));
+}
+
+#[test]
+fn copy_stdout_renders_builtins() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    std::fs::write(
+        lib.join("dated.md"),
+        "---\ntitle: Dated\n---\nD: {{date}}\n",
+    )
+    .unwrap();
+    let expected = prompt_pantry::core::context::builtin_values(&std::env::current_dir().unwrap())
+        ["date"]
+        .clone();
+    pp(&lib)
+        .args(["copy", "--id", "dated", "--stdout"])
+        .assert()
+        .success()
+        .stdout(predicates::str::contains(format!("D: {expected}")));
+}
