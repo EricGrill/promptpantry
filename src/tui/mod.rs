@@ -1,3 +1,5 @@
+pub mod app;
+
 use anyhow::Result;
 use std::path::PathBuf;
 
