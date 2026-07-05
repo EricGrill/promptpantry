@@ -25,3 +25,20 @@ fn help_lists_all_subcommands() {
         assert!(output.contains(sub), "missing subcommand {sub} in --help");
     }
 }
+
+#[test]
+fn init_creates_repo_readme_and_example_card() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = tmp.path().join("pantry");
+    pp(&lib).arg("init").assert().success();
+    assert!(lib.join(".git").is_dir());
+    assert!(lib.join("README.md").is_file());
+    assert!(lib.join("bug-report-template.md").is_file());
+    // idempotent: re-run succeeds and doesn't clobber existing files
+    std::fs::write(lib.join("README.md"), "customized").unwrap();
+    pp(&lib).arg("init").assert().success();
+    assert_eq!(
+        std::fs::read_to_string(lib.join("README.md")).unwrap(),
+        "customized"
+    );
+}
