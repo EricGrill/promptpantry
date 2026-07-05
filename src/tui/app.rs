@@ -292,6 +292,9 @@ impl App {
     }
 
     fn handle_confirm_delete(&mut self, key: KeyEvent) -> Action {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            return Action::Quit;
+        }
         match key.code {
             KeyCode::Char('y') | KeyCode::Enter => {
                 self.mode = Mode::Browse;
@@ -436,6 +439,18 @@ mod tests {
             panic!("expected new card form")
         };
         assert_eq!(form.title, "a"); // no literal 'c' appended
+    }
+
+    #[test]
+    fn ctrl_c_quits_confirm_delete() {
+        let (mut app, t) = sample_app();
+        for c in "standup".chars() {
+            app.handle_key(key(KeyCode::Char(c)));
+        }
+        app.handle_key(ctrl('d'));
+        assert!(matches!(app.mode, Mode::ConfirmDelete));
+        assert_eq!(app.handle_key(ctrl('c')), Action::Quit);
+        assert!(t.path().join("standup.md").exists()); // not deleted
     }
 
     #[test]
