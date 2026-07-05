@@ -40,6 +40,11 @@ fn event_loop(terminal: &mut DefaultTerminal, app: &mut App) -> Result<()> {
                 *terminal = ratatui::init();
                 terminal.clear()?;
                 match edit_result {
+                    Ok(()) if !app.git_ok => {
+                        // not a git repo: nothing to commit, no misleading git errors
+                        app.set_status("saved".to_string());
+                        app.reload();
+                    }
                     Ok(()) => {
                         // commit only when the editor actually changed something —
                         // quit-without-save must not show a spurious git error

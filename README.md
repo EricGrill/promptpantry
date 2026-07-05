@@ -9,6 +9,9 @@ fill `{{variables}}`, and copy to the clipboard.
 
     cargo install --path .
 
+Linux note: on X11/Wayland without a clipboard manager, copied text may not
+survive after `pp` exits (macOS/Windows unaffected).
+
 ## Quick start
 
     pp init          # create ~/prompts, git init, seed an example card

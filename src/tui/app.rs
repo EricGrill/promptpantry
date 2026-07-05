@@ -194,6 +194,9 @@ impl App {
     }
 
     fn handle_var_form(&mut self, key: KeyEvent) -> Action {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            return Action::Quit;
+        }
         let Mode::VarForm(form) = &mut self.mode else {
             return Action::None;
         };
@@ -223,13 +226,18 @@ impl App {
                     self.finish_copy(&id, text);
                 }
             }
-            KeyCode::Char(c) => form.values[form.focus].push(c),
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
+                form.values[form.focus].push(c)
+            }
             _ => {}
         }
         Action::None
     }
 
     fn handle_new_card(&mut self, key: KeyEvent) -> Action {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            return Action::Quit;
+        }
         let Mode::NewCard(form) = &mut self.mode else {
             return Action::None;
         };
@@ -271,7 +279,7 @@ impl App {
                     Err(e) => self.set_status(e.to_string()),
                 }
             }
-            KeyCode::Char(c) => {
+            KeyCode::Char(c) if !key.modifiers.contains(KeyModifiers::CONTROL) => {
                 if form.focus == 0 {
                     form.title.push(c);
                 } else {
@@ -309,7 +317,11 @@ impl App {
     }
 
     /// Commit; on failure replace the current status with a warning.
+    /// No-op when the library isn't a git repo — the startup warning already covers that.
     pub fn commit_and_note(&mut self, rel: &str, msg: &str) {
+        if !self.git_ok {
+            return;
+        }
         if let Err(e) = crate::core::gitops::commit_path(&self.store.root, rel, msg) {
             self.set_status(format!("saved, but git commit failed: {e}"));
         }
@@ -397,6 +409,33 @@ mod tests {
             }
             other => panic!("expected Edit action, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn ctrl_c_quits_var_form_without_inserting() {
+        let (mut app, _t) = sample_app();
+        for c in "bug".chars() {
+            app.handle_key(key(KeyCode::Char(c)));
+        }
+        app.handle_key(key(KeyCode::Enter));
+        assert!(matches!(app.mode, Mode::VarForm(_)));
+        assert_eq!(app.handle_key(ctrl('c')), Action::Quit);
+        let Mode::VarForm(form) = &app.mode else {
+            panic!("expected var form")
+        };
+        assert_eq!(form.values[form.focus], ""); // no literal 'c' inserted
+    }
+
+    #[test]
+    fn ctrl_c_quits_new_card_form_without_inserting() {
+        let (mut app, _t) = sample_app();
+        app.handle_key(ctrl('n'));
+        app.handle_key(key(KeyCode::Char('a')));
+        assert_eq!(app.handle_key(ctrl('c')), Action::Quit);
+        let Mode::NewCard(form) = &app.mode else {
+            panic!("expected new card form")
+        };
+        assert_eq!(form.title, "a"); // no literal 'c' appended
     }
 
     #[test]
