@@ -17,9 +17,14 @@ survive after `pp` exits (macOS/Windows unaffected).
     pp init          # create ~/prompts, git init, seed an example card
     pp               # open the TUI: type to search, ↵ to copy
     pp list          # id<TAB>title<TAB>tags — pipe it anywhere
-    pp copy "bug report" --var ticket=ABC-123 --stdout
+    pp show bug report --var ticket=ABC-123
+    pp copy bug report --var ticket=ABC-123 --stdout
     pp new "evals/Rubric Writer" --tags evals
     pp sync          # commit externals, pull --rebase, push
+
+Use `pp show` (or `pp view`) to print a card without touching the clipboard.
+Multi-word search queries can be written as separate words, so shell quotes are
+optional.
 
 ## TUI keys
 
