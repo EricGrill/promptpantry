@@ -59,7 +59,15 @@ pub fn parse_card(id: String, path: PathBuf, raw: &str) -> Card {
             ),
         },
     };
-    Card { id, path, title, tags, description, body, parse_error }
+    Card {
+        id,
+        path,
+        title,
+        tags,
+        description,
+        body,
+        parse_error,
+    }
 }
 
 #[cfg(test)]

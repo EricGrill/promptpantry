@@ -9,7 +9,11 @@ fn git(dir: &Path, args: &[&str]) -> Result<String> {
         .output()
         .context("failed to run git — is it installed?")?;
     if !out.status.success() {
-        bail!("git {} failed: {}", args.join(" "), String::from_utf8_lossy(&out.stderr).trim());
+        bail!(
+            "git {} failed: {}",
+            args.join(" "),
+            String::from_utf8_lossy(&out.stderr).trim()
+        );
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
@@ -36,7 +40,9 @@ pub fn commit_all(dir: &Path, message: &str) -> Result<()> {
 
 /// True when the path has uncommitted changes (including untracked).
 pub fn has_changes(dir: &Path, rel: &str) -> Result<bool> {
-    Ok(!git(dir, &["status", "--porcelain", "--", rel])?.trim().is_empty())
+    Ok(!git(dir, &["status", "--porcelain", "--", rel])?
+        .trim()
+        .is_empty())
 }
 
 /// Commit pending external edits, then pull --rebase and push.
@@ -61,7 +67,11 @@ mod tests {
     fn repo() -> TempDir {
         let tmp = TempDir::new().unwrap();
         init_repo(tmp.path()).unwrap();
-        for cfg in [["user.email", "t@t"], ["user.name", "t"], ["commit.gpgsign", "false"]] {
+        for cfg in [
+            ["user.email", "t@t"],
+            ["user.name", "t"],
+            ["commit.gpgsign", "false"],
+        ] {
             git(tmp.path(), &["config", cfg[0], cfg[1]]).unwrap();
         }
         tmp

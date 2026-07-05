@@ -9,6 +9,8 @@ pub struct Query {
 }
 
 /// `#bug repro steps` -> tags=[bug], text="repro steps". A bare `#` is ignored.
+/// `#tag` tokens filter by case-insensitive PREFIX match against card tags
+/// (`#bug` matches `bugs` and `bug-triage`).
 pub fn parse_query(raw: &str) -> Query {
     let (mut tags, mut words) = (Vec::new(), Vec::new());
     for tok in raw.split_whitespace() {
@@ -20,16 +22,27 @@ pub fn parse_query(raw: &str) -> Query {
             words.push(tok);
         }
     }
-    Query { tags, text: words.join(" ") }
+    Query {
+        tags,
+        text: words.join(" "),
+    }
 }
 
-/// Indices into `cards`, tag-filtered then fuzzy-ranked over "title tags id".
+/// Indices into `cards`, tag-filtered (prefix match, see [`parse_query`]) then
+/// fuzzy-ranked over "title tags id". The text query goes through
+/// `Pattern::parse`, so nucleo/fzf-style operators are supported by design:
+/// `!neg` (negation), `^prefix`, `'exact`, `$suffix`.
 /// Empty text returns all tag-filtered cards in their given (title-sorted) order.
 pub fn search_indices(cards: &[Card], raw: &str) -> Vec<usize> {
     let q = parse_query(raw);
     let candidates: Vec<usize> = (0..cards.len())
         .filter(|&i| {
-            q.tags.iter().all(|t| cards[i].tags.iter().any(|ct| ct.to_lowercase().starts_with(t)))
+            q.tags.iter().all(|t| {
+                cards[i]
+                    .tags
+                    .iter()
+                    .any(|ct| ct.to_lowercase().starts_with(t))
+            })
         })
         .collect();
     if q.text.is_empty() {
@@ -47,12 +60,15 @@ pub fn search_indices(cards: &[Card], raw: &str) -> Vec<usize> {
             Some((score, i))
         })
         .collect();
-    scored.sort_by(|a, b| b.0.cmp(&a.0)); // stable: ties keep title order
+    scored.sort_by_key(|&(s, _)| std::cmp::Reverse(s)); // stable: ties keep title order
     scored.into_iter().map(|(_, i)| i).collect()
 }
 
 pub fn search<'a>(cards: &'a [Card], raw: &str) -> Vec<&'a Card> {
-    search_indices(cards, raw).into_iter().map(|i| &cards[i]).collect()
+    search_indices(cards, raw)
+        .into_iter()
+        .map(|i| &cards[i])
+        .collect()
 }
 
 #[cfg(test)]
@@ -91,7 +107,10 @@ mod tests {
     fn tag_tokens_filter_by_prefix() {
         let cards = sample();
         let hits = search(&cards, "#bug");
-        assert_eq!(hits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(), vec!["bug-report"]);
+        assert_eq!(
+            hits.iter().map(|c| c.id.as_str()).collect::<Vec<_>>(),
+            vec!["bug-report"]
+        );
     }
 
     #[test]

@@ -10,7 +10,9 @@ struct FileConfig {
 pub fn resolve_library_dir(flag: Option<PathBuf>) -> PathBuf {
     resolve_from(
         flag,
-        std::env::var("PROMPT_PANTRY_DIR").ok().filter(|s| !s.is_empty()),
+        std::env::var("PROMPT_PANTRY_DIR")
+            .ok()
+            .filter(|s| !s.is_empty()),
         dirs::home_dir(),
     )
 }
@@ -27,7 +29,8 @@ fn resolve_from(flag: Option<PathBuf>, env: Option<String>, home: Option<PathBuf
             return d;
         }
     }
-    home.map(|h| h.join("prompts")).unwrap_or_else(|| PathBuf::from("prompts"))
+    home.map(|h| h.join("prompts"))
+        .unwrap_or_else(|| PathBuf::from("prompts"))
 }
 
 fn read_config_dir(path: &Path) -> Option<PathBuf> {
@@ -47,8 +50,14 @@ mod tests {
         std::fs::create_dir_all(&cfg).unwrap();
         std::fs::write(cfg.join("config.toml"), "dir = \"/from/config\"").unwrap();
         let h = Some(home.path().to_path_buf());
-        assert_eq!(resolve_from(Some("/flag".into()), Some("/env".into()), h.clone()), PathBuf::from("/flag"));
-        assert_eq!(resolve_from(None, Some("/env".into()), h.clone()), PathBuf::from("/env"));
+        assert_eq!(
+            resolve_from(Some("/flag".into()), Some("/env".into()), h.clone()),
+            PathBuf::from("/flag")
+        );
+        assert_eq!(
+            resolve_from(None, Some("/env".into()), h.clone()),
+            PathBuf::from("/env")
+        );
         assert_eq!(resolve_from(None, None, h), PathBuf::from("/from/config"));
         let empty_home = TempDir::new().unwrap();
         assert_eq!(

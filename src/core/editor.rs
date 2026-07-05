@@ -36,8 +36,14 @@ mod tests {
 
     #[test]
     fn editor_resolution_prefers_editor_then_visual_then_vi() {
-        assert_eq!(resolve_from(Some("nano".into()), Some("code".into())), "nano");
-        assert_eq!(resolve_from(None, Some("code --wait".into())), "code --wait");
+        assert_eq!(
+            resolve_from(Some("nano".into()), Some("code".into())),
+            "nano"
+        );
+        assert_eq!(
+            resolve_from(None, Some("code --wait".into())),
+            "code --wait"
+        );
         assert_eq!(resolve_from(Some(String::new()), None), "vi");
     }
 }

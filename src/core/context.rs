@@ -3,7 +3,11 @@ use std::path::Path;
 use std::process::Command;
 
 fn git_out(dir: &Path, args: &[&str]) -> Option<String> {
-    let out = Command::new("git").args(args).current_dir(dir).output().ok()?;
+    let out = Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .ok()?;
     if !out.status.success() {
         return None;
     }
@@ -15,7 +19,11 @@ fn git_out(dir: &Path, args: &[&str]) -> Option<String> {
 /// Keys are always present; values are empty strings when not applicable.
 pub fn builtin_values(cwd: &Path) -> HashMap<String, String> {
     let repo = git_out(cwd, &["rev-parse", "--show-toplevel"])
-        .and_then(|p| Path::new(&p).file_name().map(|n| n.to_string_lossy().into_owned()))
+        .and_then(|p| {
+            Path::new(&p)
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+        })
         .unwrap_or_default();
     // `branch --show-current` works even on an unborn branch (fresh init)
     let branch = git_out(cwd, &["branch", "--show-current"]).unwrap_or_default();
@@ -23,7 +31,10 @@ pub fn builtin_values(cwd: &Path) -> HashMap<String, String> {
         ("repo".to_string(), repo),
         ("branch".to_string(), branch),
         ("cwd".to_string(), cwd.to_string_lossy().into_owned()),
-        ("date".to_string(), chrono::Local::now().format("%Y-%m-%d").to_string()),
+        (
+            "date".to_string(),
+            chrono::Local::now().format("%Y-%m-%d").to_string(),
+        ),
     ])
 }
 
@@ -32,7 +43,12 @@ mod tests {
     use super::*;
 
     fn git(dir: &Path, args: &[&str]) {
-        assert!(Command::new("git").args(args).current_dir(dir).status().unwrap().success());
+        assert!(Command::new("git")
+            .args(args)
+            .current_dir(dir)
+            .status()
+            .unwrap()
+            .success());
     }
 
     #[test]

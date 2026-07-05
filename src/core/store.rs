@@ -13,7 +13,10 @@ impl Store {
     /// Open an existing library directory. Errors (with a `pp init` hint) if missing.
     pub fn open(root: PathBuf) -> Result<Store> {
         if !root.is_dir() {
-            bail!("library not found at {} — run `pp init` to create it", root.display());
+            bail!(
+                "library not found at {} — run `pp init` to create it",
+                root.display()
+            );
         }
         Ok(Store { root })
     }
@@ -130,7 +133,9 @@ mod tests {
     #[test]
     fn create_card_kebabs_supports_subdirs_never_overwrites() {
         let (store, _tmp) = lib_with(&[]);
-        let (id, path) = store.create_card("Evals/Rubric Writer!", &["evals".into()]).unwrap();
+        let (id, path) = store
+            .create_card("Evals/Rubric Writer!", &["evals".into()])
+            .unwrap();
         assert_eq!(id, "evals/rubric-writer");
         let content = fs::read_to_string(&path).unwrap();
         assert!(content.contains("title: \"Rubric Writer!\""));
@@ -159,7 +164,11 @@ mod tests {
         store.create_card(title, &[]).unwrap();
         let cards = store.load_cards();
         assert_eq!(cards.len(), 1);
-        assert!(cards[0].parse_error.is_none(), "parse_error: {:?}", cards[0].parse_error);
+        assert!(
+            cards[0].parse_error.is_none(),
+            "parse_error: {:?}",
+            cards[0].parse_error
+        );
         assert_eq!(cards[0].title, title);
     }
 
