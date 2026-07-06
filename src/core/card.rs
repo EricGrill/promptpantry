@@ -29,32 +29,40 @@ pub fn title_from_id(id: &str) -> String {
     id.rsplit('/').next().unwrap_or(id).replace('-', " ")
 }
 
+/// Normalize line endings to \n for cross-platform frontmatter detection.
+fn normalize_line_endings(raw: &str) -> String {
+    raw.replace("\r\n", "\n").replace('\r', "\n")
+}
+
 /// Split raw content into (frontmatter yaml, body). None when there is no frontmatter block.
-fn split_front_matter(raw: &str) -> Option<(&str, &str)> {
-    let rest = raw.strip_prefix("---\n")?;
+fn split_front_matter(raw: &str) -> Option<(String, String)> {
+    let normalized = normalize_line_endings(raw);
+    let rest = normalized.strip_prefix("---\n")?;
     if let Some(idx) = rest.find("\n---\n") {
-        return Some((&rest[..idx], &rest[idx + 5..]));
+        let body_start = idx + 5;
+        return Some((rest[..idx].to_string(), rest[body_start..].to_string()));
     }
     // frontmatter block that ends at EOF
-    rest.strip_suffix("\n---").map(|fm| (fm, ""))
+    rest.strip_suffix("\n---")
+        .map(|fm| (fm.to_string(), String::new()))
 }
 
 pub fn parse_card(id: String, path: PathBuf, raw: &str) -> Card {
     let (title, tags, description, body, parse_error) = match split_front_matter(raw) {
         None => (title_from_id(&id), vec![], None, raw.to_string(), None),
-        Some((fm_raw, body)) => match serde_yaml::from_str::<FrontMatter>(fm_raw) {
+        Some((fm_raw, body)) => match serde_yaml::from_str::<FrontMatter>(&fm_raw) {
             Ok(fm) => (
                 fm.title.unwrap_or_else(|| title_from_id(&id)),
                 fm.tags.unwrap_or_default(),
                 fm.description,
-                body.to_string(),
+                body,
                 None,
             ),
             Err(e) => (
                 title_from_id(&id),
                 vec![],
                 None,
-                body.to_string(),
+                body,
                 Some(format!("bad frontmatter: {e}")),
             ),
         },
@@ -103,5 +111,22 @@ mod tests {
         assert!(c.parse_error.is_some());
         assert_eq!(c.title, "my card");
         assert_eq!(c.body, "body\n");
+    }
+
+    #[test]
+    fn crlf_line_endings_detect_frontmatter() {
+        let c = card("---\r\ntitle: Windows Card\r\ntags: [win]\r\n---\r\nBody text\r\n");
+        assert_eq!(c.title, "Windows Card");
+        assert_eq!(c.tags, vec!["win"]);
+        assert_eq!(c.body, "Body text\r\n");
+        assert!(c.parse_error.is_none());
+    }
+
+    #[test]
+    fn bare_cr_line_endings_detect_frontmatter() {
+        let c = card("---\rtitle: Old Mac\r---\rBody\r");
+        assert_eq!(c.title, "Old Mac");
+        assert_eq!(c.body, "Body\r");
+        assert!(c.parse_error.is_none());
     }
 }
