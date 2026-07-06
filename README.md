@@ -128,7 +128,7 @@ Capability-catalog view:
 | `a` | add a catalog entry |
 | `i` | import a `library.yaml` catalog |
 | `^s` | refresh installed catalog entries from their sources |
-| `^p` | push local edits back to the selected entry's source |
+| `^p` | confirm and push local edits back to the selected entry's source |
 | `^d` | remove selected catalog entry and local installs after confirmation |
 | PgUp/PgDn | scroll preview |
 | Esc | clear query, then quit |
@@ -195,6 +195,12 @@ entries from their sources. `pp library push` copies local edits back to a local
 source, or commits and pushes back to a GitHub source when the source URL points
 at GitHub.
 
+Catalog entry names are plain file names, not paths. Prompt Pantry rejects names
+and GitHub source paths that try to traverse outside their install or clone
+directories. Skill installs intentionally copy the whole directory containing
+`SKILL.md`, so keep private notes, fixtures, credentials, and build artifacts
+outside that directory before installing or pushing a skill.
+
 Dependencies are typed as `kind:name`, for example `prompt:bug` or
 `skill:reviewer`, and are installed before the requested entry.
 
@@ -210,3 +216,7 @@ cargo build --release
 The test suite covers core parsing/search/template behavior, git-backed library
 operations, CLI flows, catalog install/sync/push/remove/import behavior, and TUI
 rendering/state-machine smoke tests.
+
+Security policy and reporting guidance live in `SECURITY.md`. This repository is
+public, but it does not declare an open-source license yet; until a license is
+added, reuse rights are limited to GitHub's standard public-repository terms.

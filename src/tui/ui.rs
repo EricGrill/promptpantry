@@ -28,6 +28,7 @@ pub fn draw(f: &mut Frame, app: &App) {
         Mode::ConfirmDelete => draw_confirm_delete(f, app),
         Mode::CatalogAdd(form) => draw_catalog_add(f, form),
         Mode::CatalogImport(form) => draw_catalog_import(f, form),
+        Mode::ConfirmCatalogPush => draw_confirm_catalog_push(f, app),
         Mode::ConfirmCatalogRemove => draw_confirm_catalog_remove(f, app),
         Mode::Browse => {}
     }
@@ -186,7 +187,7 @@ fn draw_catalog_preview(f: &mut Frame, app: &App, area: Rect) {
     ));
     lines.push(Line::from("Enter installs the selected entry."));
     lines.push(Line::from(
-        "^s syncs installed entries; ^p pushes local edits.",
+        "^s syncs installed entries; ^p confirms and pushes local edits.",
     ));
     lines.push(Line::from(
         "a adds; i imports; ^d removes catalog entry and local installs.",
@@ -208,7 +209,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
                 Style::default().fg(Color::DarkGray),
             ),
             View::Library => (
-                "tab cards   ↵ use   a add   i import   ^s sync   ^p push   ^d remove   esc quit"
+                "tab cards   ↵ use   a add   i import   ^s sync   ^p confirm push   ^d remove   esc quit"
                     .to_string(),
                 Style::default().fg(Color::DarkGray),
             ),
@@ -337,6 +338,30 @@ fn draw_confirm_catalog_remove(f: &mut Frame, app: &App) {
             Block::default()
                 .borders(Borders::ALL)
                 .title(" confirm catalog remove "),
+        ),
+        area,
+    );
+}
+
+fn draw_confirm_catalog_push(f: &mut Frame, app: &App) {
+    let name = app
+        .selected_catalog_row()
+        .map(|row| {
+            format!(
+                "{} `{}` to {}",
+                row.kind.as_str(),
+                row.entry.name,
+                row.entry.source
+            )
+        })
+        .unwrap_or_default();
+    let area = centered(72, 3, f.area());
+    f.render_widget(Clear, area);
+    f.render_widget(
+        Paragraph::new(format!("push local edits for {name}? (y/n)")).block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title(" confirm catalog push "),
         ),
         area,
     );

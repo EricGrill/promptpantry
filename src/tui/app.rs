@@ -21,6 +21,7 @@ pub enum Mode {
     ConfirmDelete,
     CatalogAdd(CatalogAddForm),
     CatalogImport(CatalogImportForm),
+    ConfirmCatalogPush,
     ConfirmCatalogRemove,
 }
 
@@ -198,6 +199,7 @@ impl App {
             Mode::ConfirmDelete => self.handle_confirm_delete(key),
             Mode::CatalogAdd(_) => self.handle_catalog_add(key),
             Mode::CatalogImport(_) => self.handle_catalog_import(key),
+            Mode::ConfirmCatalogPush => self.handle_confirm_catalog_push(key),
             Mode::ConfirmCatalogRemove => self.handle_confirm_catalog_remove(key),
         }
     }
@@ -269,7 +271,11 @@ impl App {
         match (key.code, ctrl) {
             (KeyCode::Char('c'), true) => return Action::Quit,
             (KeyCode::Char('s'), true) => self.sync_catalog(),
-            (KeyCode::Char('p'), true) => self.push_selected_catalog_entry(),
+            (KeyCode::Char('p'), true) => {
+                if self.selected_catalog_row().is_some() {
+                    self.mode = Mode::ConfirmCatalogPush;
+                }
+            }
             (KeyCode::Char('d'), true) => {
                 if self.selected_catalog_row().is_some() {
                     self.mode = Mode::ConfirmCatalogRemove;
@@ -532,6 +538,20 @@ impl App {
         }
         if let Some(source) = submit {
             self.import_catalog(source);
+        }
+        Action::None
+    }
+
+    fn handle_confirm_catalog_push(&mut self, key: KeyEvent) -> Action {
+        if key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL) {
+            return Action::Quit;
+        }
+        match key.code {
+            KeyCode::Char('y') | KeyCode::Enter => {
+                self.mode = Mode::Browse;
+                self.push_selected_catalog_entry();
+            }
+            _ => self.mode = Mode::Browse,
         }
         Action::None
     }
@@ -906,6 +926,9 @@ mod tests {
 
         std::fs::write(&installed, "local edit\n").unwrap();
         app.handle_key(ctrl('p'));
+        assert_eq!(std::fs::read_to_string(&source).unwrap(), "v2\n");
+        assert!(matches!(app.mode, Mode::ConfirmCatalogPush));
+        app.handle_key(key(KeyCode::Char('y')));
         assert_eq!(std::fs::read_to_string(&source).unwrap(), "local edit\n");
 
         app.handle_key(ctrl('d'));

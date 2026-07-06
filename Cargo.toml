@@ -2,6 +2,14 @@
 name = "prompt-pantry"
 version = "0.1.0"
 edition = "2021"
+description = "Local git-backed prompt library CLI and TUI"
+repository = "https://github.com/EricGrill/promptpantry"
+homepage = "https://github.com/EricGrill/promptpantry"
+readme = "README.md"
+keywords = ["prompts", "cli", "tui", "git", "workflow"]
+categories = ["command-line-utilities"]
+publish = false
+exclude = ["AGENTS.md", "docs/superpowers/**", ".claude/**", ".omx/**"]
 
 [lib]
 name = "prompt_pantry"

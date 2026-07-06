@@ -3,7 +3,7 @@ use anyhow::{bail, Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashSet};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -146,7 +146,10 @@ pub fn load(dir: &Path) -> Result<CatalogFileData> {
         return Ok(CatalogFileData::default());
     }
     let raw = fs::read_to_string(&path).with_context(|| format!("reading {}", path.display()))?;
-    serde_yaml::from_str(&raw).with_context(|| format!("parsing {}", path.display()))
+    let catalog: CatalogFileData =
+        serde_yaml::from_str(&raw).with_context(|| format!("parsing {}", path.display()))?;
+    validate_catalog_entries(&catalog)?;
+    Ok(catalog)
 }
 
 pub fn save(dir: &Path, catalog: &CatalogFileData) -> Result<()> {
@@ -200,6 +203,10 @@ pub fn add(
     source: String,
     requires: Vec<String>,
 ) -> Result<()> {
+    validate_catalog_name(&name).with_context(|| format!("invalid {} name", kind.as_str()))?;
+    for dep in &requires {
+        validate_dependency(dep)?;
+    }
     validate_source(&source)?;
     let mut catalog = load(dir)?;
     let section = entries_mut(&mut catalog, kind);
@@ -231,6 +238,11 @@ pub fn import(dir: &Path, source: &Path) -> Result<usize> {
         fs::read_to_string(&source).with_context(|| format!("reading {}", source.display()))?;
     let imported: CatalogFileData =
         serde_yaml::from_str(&raw).with_context(|| format!("parsing {}", source.display()))?;
+    validate_catalog_entries(&imported)?;
+    for (kind, entry) in all_entries(&imported) {
+        parse_source(&entry.source)
+            .with_context(|| format!("invalid source for {} `{}`", kind.as_str(), entry.name))?;
+    }
     let mut catalog = load(dir)?;
     let mut changed = 0;
     for (kind, entry) in all_entries(&imported) {
@@ -545,17 +557,20 @@ fn resolve_path(path: &Path, cwd: &Path) -> PathBuf {
 }
 
 fn target_item_path(kind: EntryKind, base: &Path, name: &str) -> PathBuf {
+    debug_assert!(validate_catalog_name(name).is_ok());
     match kind {
         EntryKind::Skill => base.join(name),
         EntryKind::Agent | EntryKind::Prompt => base.join(format!("{name}.md")),
     }
 }
 
+#[derive(Debug)]
 enum Source {
     Local(PathBuf),
     Github(GithubSource),
 }
 
+#[derive(Debug)]
 struct GithubSource {
     clone_url: String,
     ssh_url: String,
@@ -575,6 +590,58 @@ fn validate_source(source: &str) -> Result<()> {
     Ok(())
 }
 
+fn validate_catalog_entries(catalog: &CatalogFileData) -> Result<()> {
+    for (kind, entry) in all_entries(catalog) {
+        validate_catalog_name(&entry.name)
+            .with_context(|| format!("invalid {} name `{}`", kind.as_str(), entry.name))?;
+        for dep in &entry.requires {
+            validate_dependency(dep).with_context(|| {
+                format!(
+                    "invalid dependency `{dep}` for {} `{}`",
+                    kind.as_str(),
+                    entry.name
+                )
+            })?;
+        }
+    }
+    Ok(())
+}
+
+fn validate_catalog_name(name: &str) -> Result<()> {
+    if name.is_empty() {
+        bail!("catalog names cannot be empty");
+    }
+    if name.trim() != name {
+        bail!("catalog names cannot start or end with whitespace");
+    }
+    if name == "." || name == ".." {
+        bail!("catalog names cannot be `.` or `..`");
+    }
+    if name.contains('/') || name.contains('\\') {
+        bail!("catalog names cannot contain path separators");
+    }
+    if name.chars().any(|c| c.is_control()) {
+        bail!("catalog names cannot contain control characters");
+    }
+    let path = Path::new(name);
+    if path.is_absolute()
+        || !path
+            .components()
+            .all(|component| matches!(component, Component::Normal(_)))
+    {
+        bail!("catalog names must be plain file names");
+    }
+    Ok(())
+}
+
+fn validate_dependency(dep: &str) -> Result<()> {
+    let (kind, name) = dep
+        .split_once(':')
+        .with_context(|| format!("dependency `{dep}` must be typed, e.g. skill:name"))?;
+    let _: EntryKind = kind.parse()?;
+    validate_catalog_name(name)
+}
+
 fn parse_source(source: &str) -> Result<Source> {
     if source.starts_with('/') || source.starts_with("~/") || source == "~" {
         return Ok(Source::Local(resolve_path(
@@ -587,8 +654,11 @@ fn parse_source(source: &str) -> Result<Source> {
         if parts.len() >= 5 && parts[2] == "blob" {
             let org = parts[0];
             let repo = parts[1];
+            validate_github_slug(org, "owner")?;
+            validate_github_slug(repo, "repository")?;
             let branch = parts[3].to_string();
-            let file_path = parts[4..].iter().collect::<PathBuf>();
+            validate_github_branch(&branch)?;
+            let file_path = github_file_path(&parts[4..])?;
             return Ok(Source::Github(GithubSource {
                 clone_url: format!("https://github.com/{org}/{repo}.git"),
                 ssh_url: format!("git@github.com:{org}/{repo}.git"),
@@ -602,8 +672,11 @@ fn parse_source(source: &str) -> Result<Source> {
         if parts.len() >= 4 {
             let org = parts[0];
             let repo = parts[1];
+            validate_github_slug(org, "owner")?;
+            validate_github_slug(repo, "repository")?;
             let branch = parts[2].to_string();
-            let file_path = parts[3..].iter().collect::<PathBuf>();
+            validate_github_branch(&branch)?;
+            let file_path = github_file_path(&parts[3..])?;
             return Ok(Source::Github(GithubSource {
                 clone_url: format!("https://github.com/{org}/{repo}.git"),
                 ssh_url: format!("git@github.com:{org}/{repo}.git"),
@@ -613,6 +686,40 @@ fn parse_source(source: &str) -> Result<Source> {
         }
     }
     bail!("unsupported source `{source}`; use a local file path or GitHub file URL")
+}
+
+fn validate_github_slug(value: &str, label: &str) -> Result<()> {
+    if value.is_empty() || value == "." || value == ".." {
+        bail!("GitHub {label} cannot be `{value}`");
+    }
+    if value.contains('\\') || value.chars().any(|c| c.is_control()) {
+        bail!("GitHub {label} contains invalid characters");
+    }
+    Ok(())
+}
+
+fn validate_github_branch(branch: &str) -> Result<()> {
+    if branch.is_empty() || branch.chars().any(|c| c.is_control()) {
+        bail!("GitHub branch contains invalid characters");
+    }
+    Ok(())
+}
+
+fn github_file_path(parts: &[&str]) -> Result<PathBuf> {
+    if parts.is_empty() {
+        bail!("GitHub source URL must include a file path");
+    }
+    let mut path = PathBuf::new();
+    for part in parts {
+        if part.is_empty() || *part == "." || *part == ".." {
+            bail!("GitHub source file path cannot contain `{part}`");
+        }
+        if part.contains('\\') || part.chars().any(|c| c.is_control()) {
+            bail!("GitHub source file path contains invalid characters");
+        }
+        path.push(part);
+    }
+    Ok(path)
 }
 
 fn fetch_to_target(kind: EntryKind, source: &str, target: &Path) -> Result<()> {
@@ -795,4 +902,99 @@ fn remove_path_if_exists(path: &Path) -> Result<()> {
         Err(e) => return Err(e).with_context(|| format!("checking {}", path.display())),
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tempfile::TempDir;
+
+    fn local_prompt(tmp: &TempDir) -> PathBuf {
+        let source = tmp.path().join("source.md");
+        fs::write(&source, "prompt body\n").unwrap();
+        source
+    }
+
+    #[test]
+    fn add_rejects_catalog_names_that_escape_install_targets() {
+        let tmp = TempDir::new().unwrap();
+        let source = local_prompt(&tmp);
+
+        let err = add(
+            tmp.path(),
+            EntryKind::Prompt,
+            "../escaped".to_string(),
+            "bad".to_string(),
+            source.to_string_lossy().into_owned(),
+            vec![],
+        )
+        .unwrap_err();
+
+        assert!(err.to_string().contains("invalid prompt name"));
+        assert!(!tmp.path().join("library.yaml").exists());
+    }
+
+    #[test]
+    fn import_rejects_catalog_names_that_escape_install_targets() {
+        let tmp = TempDir::new().unwrap();
+        let source = local_prompt(&tmp);
+        let imported = tmp.path().join("import.yaml");
+        fs::write(
+            &imported,
+            format!(
+                "library:\n  prompts:\n    - name: ../escaped\n      description: bad\n      source: {}\n",
+                source.display()
+            ),
+        )
+        .unwrap();
+
+        let err = import(tmp.path(), &imported).unwrap_err();
+
+        assert!(err.to_string().contains("invalid prompt name"));
+        assert!(!tmp.path().join("library.yaml").exists());
+    }
+
+    #[test]
+    fn load_rejects_catalog_dependencies_that_escape_install_targets() {
+        let tmp = TempDir::new().unwrap();
+        let source = local_prompt(&tmp);
+        fs::write(
+            tmp.path().join("library.yaml"),
+            format!(
+                "library:\n  prompts:\n    - name: writer\n      description: bad dependency\n      source: {}\n      requires:\n        - prompt:../escaped\n",
+                source.display()
+            ),
+        )
+        .unwrap();
+
+        let err = load(tmp.path()).unwrap_err();
+
+        assert!(err.to_string().contains("invalid dependency"));
+    }
+
+    #[test]
+    fn github_source_paths_cannot_escape_the_clone_dir() {
+        let err =
+            parse_source("https://github.com/org/repo/blob/main/../../private.md").unwrap_err();
+        assert!(err.to_string().contains("cannot contain `..`"), "{err:#}");
+
+        let err = parse_source("https://raw.githubusercontent.com/org/repo/main/./private.md")
+            .unwrap_err();
+        assert!(err.to_string().contains("cannot contain `.`"), "{err:#}");
+    }
+
+    #[test]
+    fn github_source_paths_accept_normal_nested_files() {
+        let Source::Github(source) =
+            parse_source("https://github.com/org/repo/blob/main/skills/reviewer/SKILL.md").unwrap()
+        else {
+            panic!("expected GitHub source");
+        };
+
+        assert_eq!(source.branch, "main");
+        assert_eq!(
+            source.file_path,
+            PathBuf::from("skills").join("reviewer").join("SKILL.md")
+        );
+    }
 }
