@@ -29,22 +29,75 @@ pub fn title_from_id(id: &str) -> String {
     id.rsplit('/').next().unwrap_or(id).replace('-', " ")
 }
 
-/// Normalize line endings to \n for cross-platform frontmatter detection.
+/// Normalize line endings to \n so the YAML parser sees consistent breaks.
 fn normalize_line_endings(raw: &str) -> String {
     raw.replace("\r\n", "\n").replace('\r', "\n")
 }
 
-/// Split raw content into (frontmatter yaml, body). None when there is no frontmatter block.
-fn split_front_matter(raw: &str) -> Option<(String, String)> {
-    let normalized = normalize_line_endings(raw);
-    let rest = normalized.strip_prefix("---\n")?;
-    if let Some(idx) = rest.find("\n---\n") {
-        let body_start = idx + 5;
-        return Some((rest[..idx].to_string(), rest[body_start..].to_string()));
+/// One line of `raw` plus its byte span, terminator excluded from `content`.
+struct Line<'a> {
+    content: &'a str,
+    /// Byte offset of the line's first character.
+    start: usize,
+    /// Byte offset immediately after the line's terminator (start of the next line).
+    end: usize,
+}
+
+/// Iterate the lines of `raw`, tolerating `\n`, `\r\n`, and bare `\r` terminators.
+struct LineSpans<'a> {
+    raw: &'a str,
+    pos: usize,
+}
+
+impl<'a> Iterator for LineSpans<'a> {
+    type Item = Line<'a>;
+
+    fn next(&mut self) -> Option<Line<'a>> {
+        if self.pos >= self.raw.len() {
+            return None;
+        }
+        let bytes = self.raw.as_bytes();
+        let start = self.pos;
+        let mut i = start;
+        let (content_end, next) = loop {
+            match bytes.get(i) {
+                None => break (i, i),
+                Some(b'\n') => break (i, i + 1),
+                Some(b'\r') if bytes.get(i + 1) == Some(&b'\n') => break (i, i + 2),
+                Some(b'\r') => break (i, i + 1),
+                Some(_) => i += 1,
+            }
+        };
+        self.pos = next;
+        Some(Line {
+            content: &self.raw[start..content_end],
+            start,
+            end: next,
+        })
     }
-    // frontmatter block that ends at EOF
-    rest.strip_suffix("\n---")
-        .map(|fm| (fm.to_string(), String::new()))
+}
+
+/// Split raw content into (frontmatter yaml, body). None when there is no frontmatter block.
+///
+/// Detection tolerates `\n`, `\r\n`, and bare `\r` line endings. The body is returned
+/// verbatim from `raw` (its original line endings preserved); only the frontmatter is
+/// normalized before it reaches the YAML parser.
+fn split_front_matter(raw: &str) -> Option<(String, String)> {
+    let mut lines = LineSpans { raw, pos: 0 };
+    // The opening `---` fence must be the very first line.
+    if lines.next()?.content != "---" {
+        return None;
+    }
+    let fm_start = lines.pos;
+    // The frontmatter ends at the next line that is exactly `---`.
+    for line in lines.by_ref() {
+        if line.content == "---" {
+            let fm = &raw[fm_start..line.start];
+            let body = &raw[line.end..];
+            return Some((normalize_line_endings(fm), body.to_string()));
+        }
+    }
+    None
 }
 
 pub fn parse_card(id: String, path: PathBuf, raw: &str) -> Card {
