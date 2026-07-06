@@ -5,7 +5,7 @@ use std::path::Path;
 
 const README: &str = "# Prompt Pantry library\n\nEach `.md` file is a prompt card: YAML frontmatter (title, tags, description), then the prompt body.\nManage it with `pp`, or edit files directly — it's just a git repo.\n";
 
-const EXAMPLE: &str = "---\ntitle: Bug Report Template\ntags: [bugs, templates]\ndescription: Structured repro report\n---\nRepo: {{repo}}\nTicket: {{ticket}}\n\n## Steps to reproduce\n1.\n\n## Expected\n\n## Actual\n";
+const EXAMPLE: &str = "---\ntitle: Bug Report Template\ntags: [bugs, templates]\ndescription: Structured repro report\n---\nRepo: {{repo}}\nBranch: {{branch}}\nDate: {{date}}\n\n## Steps to reproduce\n1.\n\n## Expected\n\n## Actual\n";
 
 pub fn run(dir: &Path) -> Result<()> {
     fs::create_dir_all(dir)?;
