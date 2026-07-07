@@ -88,6 +88,8 @@ enum Cmd {
     },
     /// Commit pending changes, then git pull --rebase && git push
     Sync,
+    /// Check the library and catalog for problems (exits non-zero on errors)
+    Doctor,
     /// Manage reusable prompts, skills, and agents from a library.yaml catalog
     Library {
         #[command(subcommand)]
@@ -194,6 +196,7 @@ fn main() -> anyhow::Result<()> {
         }
         Some(Cmd::New { title, tags }) => cli::new::run(&dir, &title, &tags),
         Some(Cmd::Sync) => cli::sync::run(&dir),
+        Some(Cmd::Doctor) => cli::doctor::run(&dir),
         Some(Cmd::Library { cmd }) => match cmd {
             LibraryCmd::Add {
                 kind,

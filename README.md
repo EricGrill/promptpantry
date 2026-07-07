@@ -16,6 +16,7 @@ hosted service and no database to migrate.
 - CLI commands for scripts and shell workflows
 - Git-backed prompt library with focused commits for local changes
 - Optional `library.yaml` catalog for reusable prompts, skills, and agents
+- `pp doctor` health check for frontmatter, ambiguous titles, and catalog integrity
 
 ## Install
 
@@ -122,6 +123,7 @@ pp view [query...] [--id id] [--raw] [--var key=value]
 pp copy [query...] [--id id] [--raw] [--stdout] [--var key=value]
 pp new <title> [--tags tag,tag]
 pp sync
+pp doctor
 pp library <command>
 ```
 
@@ -135,6 +137,7 @@ pp library <command>
 | `pp copy --stdout ...` | Render a prompt and print it instead of using the clipboard |
 | `pp new <title>` | Create a card and open it in `$EDITOR`, then `$VISUAL`, then `vi` |
 | `pp sync` | Commit external edits, run `git pull --rebase`, then push |
+| `pp doctor` | Check the library and catalog for problems; exits non-zero on errors |
 
 Search notes:
 
