@@ -1,5 +1,6 @@
 use crate::core::{context, search::search, store::Store, template};
 use anyhow::{bail, Context, Result};
+use serde_json::json;
 use std::path::Path;
 
 pub fn run(
@@ -9,6 +10,7 @@ pub fn run(
     var_args: &[String],
     raw: bool,
     to_stdout: bool,
+    json_out: bool,
 ) -> Result<()> {
     let store = Store::open(dir.to_path_buf())?;
     let cards = store.load_cards();
@@ -48,6 +50,19 @@ pub fn run(
         }
         template::render(&card.body, &values)
     };
+
+    if json_out {
+        let out = json!({
+            "id": card.id,
+            "title": card.title,
+            "tags": card.tags,
+            "description": card.description,
+            "raw": raw,
+            "body": text,
+        });
+        println!("{}", serde_json::to_string_pretty(&out)?);
+        return Ok(());
+    }
 
     if to_stdout {
         print!("{text}");

@@ -45,6 +45,9 @@ enum Cmd {
         /// Fuzzy query words; tags still work, e.g. '#bugs'
         #[arg(value_name = "QUERY")]
         query: Vec<String>,
+        /// Emit a JSON array instead of tab-separated rows
+        #[arg(long)]
+        json: bool,
     },
     /// Print a prompt to stdout (placeholders stay intact unless --var is supplied)
     #[command(visible_alias = "view")]
@@ -61,6 +64,9 @@ enum Cmd {
         /// Print with {{placeholders}} intact (default when no --var is supplied)
         #[arg(long)]
         raw: bool,
+        /// Emit a JSON object (id, title, tags, description, body) instead of text
+        #[arg(long)]
+        json: bool,
     },
     /// Render a prompt and copy it to the clipboard
     Copy {
@@ -89,7 +95,11 @@ enum Cmd {
     /// Commit pending changes, then git pull --rebase && git push
     Sync,
     /// Check the library and catalog for problems (exits non-zero on errors)
-    Doctor,
+    Doctor {
+        /// Emit findings as JSON instead of human-readable text
+        #[arg(long)]
+        json: bool,
+    },
     /// Manage reusable prompts, skills, and agents from a library.yaml catalog
     Library {
         #[command(subcommand)]
@@ -173,16 +183,25 @@ fn main() -> anyhow::Result<()> {
     match args.cmd {
         None => tui::run(dir),
         Some(Cmd::Init) => cli::init::run(&dir),
-        Some(Cmd::List { query }) => cli::list::run(&dir, &query.join(" ")),
+        Some(Cmd::List { query, json }) => cli::list::run(&dir, &query.join(" "), json),
         Some(Cmd::Show {
             query,
             id,
             vars,
             raw,
+            json,
         }) => {
             let query = query_text(query);
             let raw = raw || vars.is_empty();
-            cli::copy::run(&dir, query.as_deref(), id.as_deref(), &vars, raw, true)
+            cli::copy::run(
+                &dir,
+                query.as_deref(),
+                id.as_deref(),
+                &vars,
+                raw,
+                true,
+                json,
+            )
         }
         Some(Cmd::Copy {
             query,
@@ -192,11 +211,19 @@ fn main() -> anyhow::Result<()> {
             stdout,
         }) => {
             let query = query_text(query);
-            cli::copy::run(&dir, query.as_deref(), id.as_deref(), &vars, raw, stdout)
+            cli::copy::run(
+                &dir,
+                query.as_deref(),
+                id.as_deref(),
+                &vars,
+                raw,
+                stdout,
+                false,
+            )
         }
         Some(Cmd::New { title, tags }) => cli::new::run(&dir, &title, &tags),
         Some(Cmd::Sync) => cli::sync::run(&dir),
-        Some(Cmd::Doctor) => cli::doctor::run(&dir),
+        Some(Cmd::Doctor { json }) => cli::doctor::run(&dir, json),
         Some(Cmd::Library { cmd }) => match cmd {
             LibraryCmd::Add {
                 kind,

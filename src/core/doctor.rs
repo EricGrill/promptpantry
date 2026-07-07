@@ -1,17 +1,19 @@
 use crate::core::catalog;
 use crate::core::store::Store;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::path::Path;
 
 /// Severity of a `pp doctor` finding. Any error makes the command exit non-zero.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Severity {
     Error,
     Warning,
 }
 
 /// A single problem found while inspecting the library.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct Finding {
     pub severity: Severity,
     pub category: &'static str,
@@ -19,7 +21,7 @@ pub struct Finding {
 }
 
 /// The full result of a health check.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Serialize)]
 pub struct Report {
     pub findings: Vec<Finding>,
 }
@@ -193,6 +195,20 @@ mod tests {
         )]);
         let report = check(tmp.path());
         assert!(report.findings.is_empty(), "{:?}", report.findings);
+    }
+
+    #[test]
+    fn report_serializes_severity_lowercase() {
+        let report = Report {
+            findings: vec![Finding {
+                severity: Severity::Error,
+                category: "frontmatter",
+                message: "boom".into(),
+            }],
+        };
+        let s = serde_json::to_string(&report).unwrap();
+        assert!(s.contains(r#""severity":"error""#), "{s}");
+        assert!(s.contains(r#""category":"frontmatter""#), "{s}");
     }
 
     #[test]
