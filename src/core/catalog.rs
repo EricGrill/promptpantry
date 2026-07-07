@@ -195,6 +195,60 @@ fn all_entries(catalog: &CatalogFileData) -> Vec<(EntryKind, CatalogEntry)> {
         .collect()
 }
 
+/// Catalog integrity problems surfaced by `pp doctor`, split by severity.
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct CatalogFindings {
+    /// Error-level: a `requires` entry points at a name absent from the catalog.
+    pub dangling: Vec<String>,
+    /// Warning-level: the same name appears twice within one kind.
+    pub duplicates: Vec<String>,
+}
+
+/// Inspect an already-parsed catalog for dangling dependency references and
+/// duplicate entry names. Load-time validation only checks dependency *format*,
+/// so existence and uniqueness are verified separately here.
+pub fn integrity_findings(catalog: &CatalogFileData) -> CatalogFindings {
+    let all = all_entries(catalog);
+    let existing: HashSet<String> = all.iter().map(|(k, e)| k.typed_key(&e.name)).collect();
+
+    let mut findings = CatalogFindings::default();
+
+    for kind in [EntryKind::Skill, EntryKind::Agent, EntryKind::Prompt] {
+        let mut seen: HashSet<String> = HashSet::new();
+        for entry in entries(catalog, kind) {
+            if !seen.insert(entry.name.to_lowercase()) {
+                findings.duplicates.push(format!(
+                    "duplicate {} entry `{}`",
+                    kind.as_str(),
+                    entry.name
+                ));
+            }
+        }
+    }
+
+    for (kind, entry) in &all {
+        for dep in &entry.requires {
+            match parse_dependency(dep) {
+                Ok((dep_kind, name)) if !existing.contains(&dep_kind.typed_key(name)) => {
+                    findings.dangling.push(format!(
+                        "{} `{}` requires `{dep}`, which is not in the catalog",
+                        kind.as_str(),
+                        entry.name
+                    ));
+                }
+                Ok(_) => {}
+                Err(_) => findings.dangling.push(format!(
+                    "{} `{}` has malformed dependency `{dep}`",
+                    kind.as_str(),
+                    entry.name
+                )),
+            }
+        }
+    }
+
+    findings
+}
+
 pub fn add(
     dir: &Path,
     kind: EntryKind,

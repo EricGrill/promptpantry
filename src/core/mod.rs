@@ -2,6 +2,7 @@ pub mod card;
 pub mod catalog;
 pub mod config;
 pub mod context;
+pub mod doctor;
 pub mod editor;
 pub mod gitops;
 pub mod search;
