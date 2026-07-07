@@ -117,15 +117,20 @@ Any other variable can be filled in the TUI form or supplied with repeatable
 
 ```sh
 pp init
-pp list [query...]
-pp show [query...] [--id id] [--raw] [--var key=value]
-pp view [query...] [--id id] [--raw] [--var key=value]
+pp list [query...] [--json]
+pp show [query...] [--id id] [--raw] [--var key=value] [--json]
+pp view [query...] [--id id] [--raw] [--var key=value] [--json]
 pp copy [query...] [--id id] [--raw] [--stdout] [--var key=value]
 pp new <title> [--tags tag,tag]
 pp sync
-pp doctor
+pp doctor [--json]
 pp library <command>
 ```
+
+`--json` on `list`, `show`, and `doctor` emits machine-readable output for
+scripting (pipe it to `jq`): `list` yields an array of
+`{id, title, tags, description}`, `show` a single object with the rendered
+`body`, and `doctor` a `{findings: [...]}` object (still exits non-zero on errors).
 
 | Command | Purpose |
 | --- | --- |

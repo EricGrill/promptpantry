@@ -5,8 +5,16 @@ use std::process::exit;
 
 /// Print a library health report. Exits with status 1 when any error is found so
 /// the command can gate CI; warnings alone leave the exit status at 0.
-pub fn run(dir: &Path) -> Result<()> {
+pub fn run(dir: &Path, json_out: bool) -> Result<()> {
     let report = doctor::check(dir);
+
+    if json_out {
+        println!("{}", serde_json::to_string_pretty(&report)?);
+        if report.errors() > 0 {
+            exit(1);
+        }
+        return Ok(());
+    }
 
     if report.findings.is_empty() {
         println!("no problems found");
