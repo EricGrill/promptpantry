@@ -51,8 +51,13 @@ The release workflow creates GitHub Release artifacts, installer scripts, and
 a Homebrew formula. Homebrew users install with:
 
 ```sh
-brew install EricGrill/tap/prompt-pantry
+brew tap EricGrill/tap
+brew trust EricGrill/tap
+brew install prompt-pantry
 ```
+
+Homebrew 6 requires trust before loading formulae from third-party taps. Older
+Homebrew versions that do not have `brew trust` can skip that line.
 
 Rust users can install from crates.io after `cargo publish` completes:
 
