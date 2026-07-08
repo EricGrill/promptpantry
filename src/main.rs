@@ -13,8 +13,7 @@ Examples:
   pp list '#bugs'
   pp show bug report
   pp show --id bug-report-template --raw
-  pp show --id bug-report-template --var ticket=ABC-123
-  pp copy bug report --var ticket=ABC-123
+  pp copy bug report
   pp new \"evals/Rubric Writer\" --tags evals,writing
   pp library add skill reviewer --description \"Code reviewer\" --source /path/to/reviewer/SKILL.md
   pp library use reviewer
