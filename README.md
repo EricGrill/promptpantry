@@ -22,25 +22,45 @@ hosted service and no database to migrate.
 
 Requirements:
 
-- Rust toolchain
 - `git`
 - Clipboard support for `pp copy` outside `--stdout`
 
-Install from a clone:
+The easiest install paths are enabled by the release workflow and will work
+after the first tagged GitHub Release is published.
 
 ```sh
-git clone https://github.com/EricGrill/promptpantry.git
-cd promptpantry
-cargo install --path .
+brew install EricGrill/tap/prompt-pantry
 ```
 
-Install directly from GitHub:
+Install from GitHub Releases without Homebrew:
+
+```sh
+curl --proto '=https' --tlsv1.2 -LsSf \
+  https://github.com/EricGrill/promptpantry/releases/latest/download/prompt-pantry-installer.sh | sh
+```
+
+On Windows PowerShell:
+
+```powershell
+powershell -ExecutionPolicy Bypass -c "irm https://github.com/EricGrill/promptpantry/releases/latest/download/prompt-pantry-installer.ps1 | iex"
+```
+
+After the crate is published to crates.io, Rust users can install with Cargo or
+cargo-binstall:
+
+```sh
+cargo install prompt-pantry --locked
+cargo binstall prompt-pantry
+```
+
+Until the first packaged release exists, install directly from GitHub:
 
 ```sh
 cargo install --git https://github.com/EricGrill/promptpantry.git
 ```
 
-There is no crates.io release yet, so install from source or GitHub.
+That fallback requires a Rust toolchain. For release operator steps, see
+[RELEASING.md](RELEASING.md).
 
 The binary is named `pp`. If another program named `pp` is earlier in your
 `PATH`, move Cargo's bin directory earlier or call the installed binary by its
