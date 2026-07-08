@@ -25,19 +25,23 @@ Requirements:
 - `git`
 - Clipboard support for `pp copy` outside `--stdout`
 
-The easiest install paths are enabled by the release workflow and will work
-after the first tagged GitHub Release is published.
-
-```sh
-brew install EricGrill/tap/prompt-pantry
-```
-
-Install from GitHub Releases without Homebrew:
+The easiest install path is the GitHub Release installer:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -LsSf \
   https://github.com/EricGrill/promptpantry/releases/latest/download/prompt-pantry-installer.sh | sh
 ```
+
+Homebrew users can install from the Prompt Pantry tap:
+
+```sh
+brew tap EricGrill/tap
+brew trust EricGrill/tap
+brew install prompt-pantry
+```
+
+Homebrew 6 requires trust before loading formulae from third-party taps. Older
+Homebrew versions that do not have `brew trust` can skip that line.
 
 On Windows PowerShell:
 
