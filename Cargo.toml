@@ -5,10 +5,11 @@ edition = "2021"
 description = "Local git-backed prompt library CLI and TUI"
 repository = "https://github.com/EricGrill/promptpantry"
 homepage = "https://github.com/EricGrill/promptpantry"
+documentation = "https://docs.rs/prompt-pantry"
 readme = "README.md"
+license = "MIT OR Apache-2.0"
 keywords = ["prompts", "cli", "tui", "git", "workflow"]
 categories = ["command-line-utilities"]
-publish = false
 exclude = ["AGENTS.md", "docs/superpowers/**", ".claude/**", ".omx/**"]
 
 [lib]
