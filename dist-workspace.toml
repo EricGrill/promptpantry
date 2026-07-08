@@ -8,7 +8,14 @@ cargo-dist-version = "0.32.0"
 # CI backends to support
 ci = "github"
 # The installers to generate for each app
-installers = ["shell", "powershell"]
+installers = ["shell", "powershell", "homebrew"]
+# A GitHub repo to push Homebrew formulas to
+tap = "EricGrill/homebrew-tap"
+# Publish jobs to run in CI
+publish-jobs = ["homebrew"]
+# Keep the generated Homebrew job, but allow the project-specific tap commit
+# identity below to differ from cargo-dist's default "axo bot" template.
+allow-dirty = ["ci"]
 # Target platforms to build apps for (Rust target-triple syntax)
 targets = ["aarch64-apple-darwin", "aarch64-unknown-linux-gnu", "x86_64-apple-darwin", "x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 # Path that installers should place binaries in
