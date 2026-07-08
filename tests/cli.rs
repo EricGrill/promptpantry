@@ -39,9 +39,7 @@ fn help_shows_examples_for_common_workflows() {
         .stdout(predicates::str::contains(
             "pp show --id bug-report-template --raw",
         ))
-        .stdout(predicates::str::contains(
-            "pp copy bug report --var ticket=ABC-123",
-        ));
+        .stdout(predicates::str::contains("pp copy bug report"));
 }
 
 #[test]
@@ -105,10 +103,11 @@ fn copy_stdout_renders_variables() {
     let tmp = tempfile::TempDir::new().unwrap();
     let lib = seeded_lib(&tmp);
     pp(&lib)
-        .args(["copy", "bug report", "--stdout", "--var", "ticket=ABC-123"])
+        .args(["copy", "bug report", "--stdout"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Ticket: ABC-123"));
+        .stdout(predicates::str::contains("Repo: promptpantry"))
+        .stdout(predicates::str::contains("Date: "));
 }
 
 #[test]
@@ -116,17 +115,11 @@ fn copy_accepts_multi_word_query_without_shell_quotes() {
     let tmp = tempfile::TempDir::new().unwrap();
     let lib = seeded_lib(&tmp);
     pp(&lib)
-        .args([
-            "copy",
-            "bug",
-            "report",
-            "--stdout",
-            "--var",
-            "ticket=ABC-123",
-        ])
+        .args(["copy", "bug", "report", "--stdout"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Ticket: ABC-123"));
+        .stdout(predicates::str::contains("Repo: promptpantry"))
+        .stdout(predicates::str::contains("Date: "));
 }
 
 #[test]
@@ -138,7 +131,8 @@ fn show_raw_prints_prompt_body_by_id() {
         .assert()
         .success()
         .stdout(predicates::str::contains("Repo: {{repo}}"))
-        .stdout(predicates::str::contains("Ticket: {{ticket}}"));
+        .stdout(predicates::str::contains("Branch: {{branch}}"))
+        .stdout(predicates::str::contains("Date: {{date}}"));
 }
 
 #[test]
@@ -149,7 +143,8 @@ fn show_accepts_multi_word_query_without_shell_quotes() {
         .args(["show", "bug", "report", "--raw"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Ticket: {{ticket}}"));
+        .stdout(predicates::str::contains("Branch: {{branch}}"))
+        .stdout(predicates::str::contains("Date: {{date}}"));
 }
 
 #[test]
@@ -160,7 +155,8 @@ fn show_without_vars_prints_raw_prompt_body() {
         .args(["show", "bug", "report"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Ticket: {{ticket}}"));
+        .stdout(predicates::str::contains("Branch: {{branch}}"))
+        .stdout(predicates::str::contains("Date: {{date}}"));
 }
 
 #[test]
@@ -168,10 +164,11 @@ fn view_alias_renders_variables() {
     let tmp = tempfile::TempDir::new().unwrap();
     let lib = seeded_lib(&tmp);
     pp(&lib)
-        .args(["view", "bug report", "--var", "ticket=ABC-123"])
+        .args(["view", "bug report", "--var", "unused=value"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Ticket: ABC-123"));
+        .stdout(predicates::str::contains("Repo: promptpantry"))
+        .stdout(predicates::str::contains("Date: "));
 }
 
 #[test]
@@ -179,18 +176,24 @@ fn view_alias_accepts_multi_word_query_without_shell_quotes() {
     let tmp = tempfile::TempDir::new().unwrap();
     let lib = seeded_lib(&tmp);
     pp(&lib)
-        .args(["view", "bug", "report", "--var", "ticket=ABC-123"])
+        .args(["view", "bug", "report", "--var", "unused=value"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("Ticket: ABC-123"));
+        .stdout(predicates::str::contains("Repo: promptpantry"))
+        .stdout(predicates::str::contains("Date: "));
 }
 
 #[test]
 fn copy_missing_variable_errors_with_names() {
     let tmp = tempfile::TempDir::new().unwrap();
     let lib = seeded_lib(&tmp);
+    std::fs::write(
+        lib.join("needs-ticket.md"),
+        "---\ntitle: Needs Ticket\ntags: [tests]\n---\nTicket: {{ticket}}\n",
+    )
+    .unwrap();
     pp(&lib)
-        .args(["copy", "--id", "bug-report-template", "--stdout"])
+        .args(["copy", "--id", "needs-ticket", "--stdout"])
         .assert()
         .failure()
         .stderr(predicates::str::contains("missing variables: ticket"));
@@ -204,7 +207,8 @@ fn copy_raw_keeps_placeholders() {
         .args(["copy", "--id", "bug-report-template", "--raw", "--stdout"])
         .assert()
         .success()
-        .stdout(predicates::str::contains("{{ticket}}"));
+        .stdout(predicates::str::contains("{{branch}}"))
+        .stdout(predicates::str::contains("{{date}}"));
 }
 
 #[test]

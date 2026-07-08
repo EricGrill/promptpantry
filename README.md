@@ -56,8 +56,7 @@ pp init
 pp
 pp list
 pp show bug report
-pp show bug report --var ticket=ABC-123
-pp copy bug report --var ticket=ABC-123
+pp copy bug report
 pp new "evals/Rubric Writer" --tags evals,writing
 pp sync
 ```
@@ -87,7 +86,8 @@ tags: [bugs, templates]
 description: Structured repro report
 ---
 Repo: {{repo}}
-Ticket: {{ticket}}
+Branch: {{branch}}
+Date: {{date}}
 
 ## Steps to reproduce
 1.
