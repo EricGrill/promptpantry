@@ -697,11 +697,9 @@ fn validate_dependency(dep: &str) -> Result<()> {
 }
 
 fn parse_source(source: &str) -> Result<Source> {
-    if source.starts_with('/') || source.starts_with("~/") || source == "~" {
-        return Ok(Source::Local(resolve_path(
-            Path::new(source),
-            &std::env::current_dir()?,
-        )));
+    let path = Path::new(source);
+    if path.is_absolute() || source.starts_with("~/") || source == "~" {
+        return Ok(Source::Local(resolve_path(path, &std::env::current_dir()?)));
     }
     if let Some(rest) = source.strip_prefix("https://github.com/") {
         let parts: Vec<&str> = rest.split('/').collect();

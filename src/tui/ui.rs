@@ -204,7 +204,7 @@ fn draw_status(f: &mut Frame, app: &App, area: Rect) {
         Some(msg) => (msg.clone(), Style::default().fg(Color::Yellow)),
         None => match app.view {
             View::Cards => (
-                "tab library   ↵ copy   ^n new   ^e edit   ^d delete   ^s sync   esc quit"
+                "tab library   ↵/^y copy   ^n new   ^e edit   ^d delete   ^s sync   esc quit"
                     .to_string(),
                 Style::default().fg(Color::DarkGray),
             ),
@@ -441,7 +441,7 @@ mod tests {
         assert!(s.contains("Bug Report"));
         assert!(s.contains("Standup"));
         assert!(s.contains("Ticket: {{ticket}}")); // preview of first (title-sorted) card
-        assert!(s.contains("↵ copy"));
+        assert!(s.contains("↵/^y copy"));
     }
 
     #[test]

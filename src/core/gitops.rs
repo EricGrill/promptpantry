@@ -18,6 +18,16 @@ fn git(dir: &Path, args: &[&str]) -> Result<String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+fn git_success(dir: &Path, args: &[&str]) -> Result<bool> {
+    Ok(Command::new("git")
+        .args(args)
+        .current_dir(dir)
+        .output()
+        .context("failed to run git — is it installed?")?
+        .status
+        .success())
+}
+
 pub fn is_repo(dir: &Path) -> bool {
     dir.join(".git").exists()
 }
@@ -50,6 +60,21 @@ pub fn sync(dir: &Path) -> Result<String> {
     if has_changes(dir, ".")? {
         git(dir, &["add", "-A"])?;
         git(dir, &["commit", "-m", "pp: sync external edits"])?;
+    }
+    if git(dir, &["remote"])?.trim().is_empty() {
+        bail!(
+            "No remote repository configured. Run `git remote add origin <url>` or use a library with a remote."
+        );
+    }
+    if !git_success(
+        dir,
+        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    )? {
+        let branch = git(dir, &["branch", "--show-current"])?.trim().to_string();
+        let branch = if branch.is_empty() { "HEAD" } else { &branch };
+        bail!(
+            "No upstream branch configured. Run `git push -u origin {branch}` once, then retry `pp sync`."
+        );
     }
     let pull = git(dir, &["pull", "--rebase"])?;
     let push = git(dir, &["push"])?;
@@ -114,5 +139,15 @@ mod tests {
         assert!(has_changes(tmp.path(), "a.md").unwrap());
         commit_path(tmp.path(), "a.md", "m").unwrap();
         assert!(!has_changes(tmp.path(), "a.md").unwrap());
+    }
+
+    #[test]
+    fn sync_without_remote_explains_how_to_configure_one() {
+        let tmp = repo();
+        let err = sync(tmp.path()).unwrap_err();
+        assert!(
+            err.to_string().contains("No remote repository configured"),
+            "{err:#}"
+        );
     }
 }

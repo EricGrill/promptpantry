@@ -250,6 +250,7 @@ impl App {
                     self.mode = Mode::ConfirmDelete;
                 }
             }
+            (KeyCode::Char('y'), true) => self.start_copy(),
             (KeyCode::Enter, _) => self.start_copy(),
             (KeyCode::Backspace, _) => {
                 self.query.pop();
@@ -775,22 +776,28 @@ mod tests {
         let source = source_dir.join("SKILL.md");
         std::fs::write(&source, "v1\n").unwrap();
         let install_base = tmp.path().join("installed/.claude/skills");
+        let agent_base = tmp.path().join("installed/.claude/agents");
+        let prompt_base = tmp.path().join("installed/.claude/commands");
         std::fs::write(
             tmp.path().join("library.yaml"),
             format!(
-                "default_dirs:\n  skills:\n    - default: {}/\n    - global: {}/\n  agents:\n    - default: {}/agents/\n    - global: {}/agents/\n  prompts:\n    - default: {}/commands/\n    - global: {}/commands/\nlibrary:\n  skills:\n    - name: writer\n      description: Writes reusable prompts\n      source: {}\n  agents: []\n  prompts: []\n",
-                install_base.display(),
-                install_base.display(),
-                tmp.path().join("installed/.claude").display(),
-                tmp.path().join("installed/.claude").display(),
-                tmp.path().join("installed/.claude").display(),
-                tmp.path().join("installed/.claude").display(),
-                source.display()
+                "default_dirs:\n  skills:\n    - default: {}\n    - global: {}\n  agents:\n    - default: {}\n    - global: {}\n  prompts:\n    - default: {}\n    - global: {}\nlibrary:\n  skills:\n    - name: writer\n      description: Writes reusable prompts\n      source: {}\n  agents: []\n  prompts: []\n",
+                yaml_path(&install_base),
+                yaml_path(&install_base),
+                yaml_path(&agent_base),
+                yaml_path(&agent_base),
+                yaml_path(&prompt_base),
+                yaml_path(&prompt_base),
+                yaml_path(&source)
             ),
         )
         .unwrap();
         let app = App::new(Store::open(tmp.path().to_path_buf()).unwrap());
         (app, tmp, source, install_base)
+    }
+
+    fn yaml_path(path: &std::path::Path) -> String {
+        format!("{:?}", path.to_string_lossy())
     }
 
     #[test]
@@ -820,6 +827,19 @@ mod tests {
             app.handle_key(key(KeyCode::Char(c)));
         }
         app.handle_key(key(KeyCode::Enter));
+        let Mode::VarForm(form) = &app.mode else {
+            panic!("expected var form")
+        };
+        assert_eq!(form.names, vec!["ticket"]);
+    }
+
+    #[test]
+    fn ctrl_y_on_card_starts_copy_flow() {
+        let (mut app, _t) = sample_app();
+        for c in "bug".chars() {
+            app.handle_key(key(KeyCode::Char(c)));
+        }
+        app.handle_key(ctrl('y'));
         let Mode::VarForm(form) = &app.mode else {
             panic!("expected var form")
         };
@@ -974,7 +994,7 @@ mod tests {
             &external,
             format!(
                 "library:\n  skills: []\n  agents:\n    - name: reviewer\n      description: Review code\n      source: {}\n  prompts: []\n",
-                source.display()
+                yaml_path(&source)
             ),
         )
         .unwrap();

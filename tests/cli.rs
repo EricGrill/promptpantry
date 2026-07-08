@@ -283,6 +283,18 @@ fn sync_commits_external_edits_and_pushes_to_a_remote() {
 }
 
 #[test]
+fn sync_without_remote_prints_friendly_setup_hint() {
+    let tmp = tempfile::TempDir::new().unwrap();
+    let lib = seeded_lib(&tmp);
+    pp(&lib)
+        .arg("sync")
+        .assert()
+        .failure()
+        .stderr(predicates::str::contains("No remote repository configured"))
+        .stderr(predicates::str::contains("git remote add origin"));
+}
+
+#[test]
 fn copy_var_without_equals_errors() {
     let tmp = tempfile::TempDir::new().unwrap();
     let lib = seeded_lib(&tmp);
