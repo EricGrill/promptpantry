@@ -20,6 +20,11 @@ hosted service and no database to migrate.
 
 ## Install
 
+> **The installed command is `pp`, not `prompt-pantry`.** `prompt-pantry` is
+> the package name you install (crate, Homebrew formula, release artifacts);
+> the binary it puts on your `PATH` is `pp`. After any install below, verify
+> with `pp --version`.
+
 Requirements:
 
 - `git`
@@ -66,9 +71,9 @@ cargo install --git https://github.com/EricGrill/promptpantry.git
 That fallback requires a Rust toolchain. For release operator steps, see
 [RELEASING.md](RELEASING.md).
 
-The binary is named `pp`. If another program named `pp` is earlier in your
-`PATH`, move Cargo's bin directory earlier or call the installed binary by its
-full path.
+As noted above, the installed binary is `pp` — `prompt-pantry` is only the
+package name. If another program named `pp` is earlier in your `PATH`, move
+Cargo's bin directory earlier or call the installed binary by its full path.
 
 Linux note: on X11/Wayland without a clipboard manager, copied text may not
 survive after `pp` exits. macOS and Windows clipboard behavior is unaffected.

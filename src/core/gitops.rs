@@ -76,7 +76,30 @@ pub fn sync(dir: &Path) -> Result<String> {
             "No upstream branch configured. Run `git push -u origin {branch}` once, then retry `pp sync`."
         );
     }
-    let pull = git(dir, &["pull", "--rebase"])?;
+    let pull = match git(dir, &["pull", "--rebase"]) {
+        Ok(out) => out,
+        Err(err) => {
+            // A conflicting `pull --rebase` stops mid-rebase, leaving conflict
+            // markers in the working tree and the repo stuck in a state `pp`
+            // offers no way out of. Roll back so the library is usable again.
+            //
+            // If the pull failed for some other reason (no network, bad
+            // credentials) no rebase is in progress, `rebase --abort` fails
+            // harmlessly, and the original error is surfaced unchanged.
+            if git_success(dir, &["rebase", "--abort"]).unwrap_or(false) {
+                bail!(
+                    "Sync hit a conflict with the remote and was rolled back — \
+                     your library is back to the state it was in before the rebase, \
+                     with your local commits intact.\n\n\
+                     Resolve it yourself in {} with `git pull --rebase`, then run \
+                     `pp sync` again.\n\n\
+                     git said: {err}",
+                    dir.display()
+                );
+            }
+            return Err(err);
+        }
+    };
     let push = git(dir, &["push"])?;
     Ok(format!("{}\n{}", pull.trim(), push.trim()))
 }
@@ -149,5 +172,100 @@ mod tests {
             err.to_string().contains("No remote repository configured"),
             "{err:#}"
         );
+    }
+
+    /// Configure identity + signing locally so commits work regardless of
+    /// this machine's global git config.
+    fn configure(dir: &Path) {
+        for cfg in [
+            ["user.email", "t@t"],
+            ["user.name", "t"],
+            ["commit.gpgsign", "false"],
+        ] {
+            git(dir, &["config", cfg[0], cfg[1]]).unwrap();
+        }
+    }
+
+    /// Two clones of one bare remote, each with a conflicting commit on the
+    /// same file, with the first clone's version already pushed — exactly the
+    /// reproduction in CHA-2543.
+    fn conflicting_clones() -> (TempDir, TempDir, TempDir) {
+        let remote = TempDir::new().unwrap();
+        git(remote.path(), &["init", "--bare"]).unwrap();
+
+        let first = TempDir::new().unwrap();
+        git(
+            first.path(),
+            &["clone", &remote.path().to_string_lossy(), "."],
+        )
+        .unwrap();
+        configure(first.path());
+        fs::write(first.path().join("p.md"), "base\n").unwrap();
+        commit_all(first.path(), "base").unwrap();
+        git(first.path(), &["push", "-u", "origin", "HEAD"]).unwrap();
+
+        let second = TempDir::new().unwrap();
+        git(
+            second.path(),
+            &["clone", &remote.path().to_string_lossy(), "."],
+        )
+        .unwrap();
+        configure(second.path());
+
+        // Diverge: same file, different content, first clone publishes.
+        fs::write(first.path().join("p.md"), "from first\n").unwrap();
+        commit_all(first.path(), "first edit").unwrap();
+        git(first.path(), &["push"]).unwrap();
+
+        fs::write(second.path().join("p.md"), "from second\n").unwrap();
+
+        (remote, first, second)
+    }
+
+    #[test]
+    fn sync_conflict_rolls_back_instead_of_leaving_repo_mid_rebase() {
+        let (_remote, _first, second) = conflicting_clones();
+
+        let err = sync(second.path()).unwrap_err();
+        assert!(
+            err.to_string().contains("rolled back"),
+            "expected a rollback message, got: {err:#}"
+        );
+
+        // The repo must be usable again: no rebase in progress, no conflict
+        // markers left behind, and the local commit preserved.
+        assert!(
+            !second.path().join(".git/rebase-merge").exists()
+                && !second.path().join(".git/rebase-apply").exists(),
+            "repo left mid-rebase"
+        );
+        let content = fs::read_to_string(second.path().join("p.md")).unwrap();
+        assert!(
+            !content.contains("<<<<<<<"),
+            "conflict markers left in working tree: {content}"
+        );
+        assert_eq!(content, "from second\n");
+        assert!(!has_changes(second.path(), ".").unwrap(), "left dirty");
+    }
+
+    #[test]
+    fn sync_succeeds_when_there_is_no_conflict() {
+        let remote = TempDir::new().unwrap();
+        git(remote.path(), &["init", "--bare"]).unwrap();
+
+        let clone = TempDir::new().unwrap();
+        git(
+            clone.path(),
+            &["clone", &remote.path().to_string_lossy(), "."],
+        )
+        .unwrap();
+        configure(clone.path());
+        fs::write(clone.path().join("p.md"), "base\n").unwrap();
+        commit_all(clone.path(), "base").unwrap();
+        git(clone.path(), &["push", "-u", "origin", "HEAD"]).unwrap();
+
+        fs::write(clone.path().join("q.md"), "new card\n").unwrap();
+        sync(clone.path()).expect("clean sync should succeed");
+        assert!(!has_changes(clone.path(), ".").unwrap());
     }
 }

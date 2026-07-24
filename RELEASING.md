@@ -59,6 +59,9 @@ brew install prompt-pantry
 Homebrew 6 requires trust before loading formulae from third-party taps. Older
 Homebrew versions that do not have `brew trust` can skip that line.
 
+Note that every install path here uses the package name `prompt-pantry`, while
+the binary installed on `PATH` is `pp`. Smoke-test a release with `pp --version`.
+
 Rust users can install from crates.io after `cargo publish` completes:
 
 ```sh
