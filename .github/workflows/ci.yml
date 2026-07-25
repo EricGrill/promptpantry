@@ -7,15 +7,43 @@ on:
       - main
 
 jobs:
-  rust:
-    runs-on: ubuntu-latest
+  test:
+    # Windows is a first-class target: the PowerShell installer is documented
+    # in the README, and every Windows-only defect so far (CHA-1945, CHA-1996,
+    # CHA-2529, CHA-2542) reached `main` because CI only ever ran on Linux, so
+    # nothing could catch them. Test on both.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      # Formatting and lints are OS-independent — running them once keeps the
+      # Windows leg focused on behaviour that actually differs by platform.
       - run: cargo fmt --check
+        if: matrix.os == 'ubuntu-latest'
       - run: cargo test --locked
       - run: cargo clippy --all-targets --locked -- -D warnings
+        if: matrix.os == 'ubuntu-latest'
       - run: cargo build --release --locked
+
+  # Aggregate gate. `main` protection requires a check named exactly `rust`,
+  # and a matrix publishes per-leg names ("rust (ubuntu-latest)") instead — so
+  # matrixing the original job would have removed the required check and
+  # blocked every PR. This keeps the name stable while both legs must pass.
+  rust:
+    needs: test
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify every test leg succeeded
+        run: |
+          if [ "${{ needs.test.result }}" != "success" ]; then
+            echo "test matrix result: ${{ needs.test.result }}"
+            exit 1
+          fi

@@ -119,6 +119,10 @@ mod tests {
             ["user.email", "t@t"],
             ["user.name", "t"],
             ["commit.gpgsign", "false"],
+            // Windows git defaults core.autocrlf=true, which rewrites LF to
+            // CRLF on checkout and makes byte-exact content assertions fail
+            // there but not on Unix. Pin it so these tests are hermetic.
+            ["core.autocrlf", "false"],
         ] {
             git(tmp.path(), &["config", cfg[0], cfg[1]]).unwrap();
         }
@@ -181,6 +185,10 @@ mod tests {
             ["user.email", "t@t"],
             ["user.name", "t"],
             ["commit.gpgsign", "false"],
+            // Windows git defaults core.autocrlf=true, which rewrites LF to
+            // CRLF on checkout and makes byte-exact content assertions fail
+            // there but not on Unix. Pin it so these tests are hermetic.
+            ["core.autocrlf", "false"],
         ] {
             git(dir, &["config", cfg[0], cfg[1]]).unwrap();
         }
