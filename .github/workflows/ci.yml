@@ -8,14 +8,26 @@ on:
 
 jobs:
   rust:
-    runs-on: ubuntu-latest
+    # Windows is a first-class target: the PowerShell installer is documented
+    # in the README, and every Windows-only defect so far (CHA-1945, CHA-1996,
+    # CHA-2529, CHA-2542) reached `main` because CI only ever ran on Linux, so
+    # nothing could catch them. Test on both.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
       - uses: Swatinem/rust-cache@v2
+      # Formatting and lints are OS-independent — running them once keeps the
+      # Windows leg focused on behaviour that actually differs by platform.
       - run: cargo fmt --check
+        if: matrix.os == 'ubuntu-latest'
       - run: cargo test --locked
       - run: cargo clippy --all-targets --locked -- -D warnings
+        if: matrix.os == 'ubuntu-latest'
       - run: cargo build --release --locked
